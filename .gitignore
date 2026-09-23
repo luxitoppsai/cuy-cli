@@ -14,3 +14,6 @@ spike/tarea/opencode.json
 # Configuración específica del entorno: la genera instalar.py (D7 del RFC)
 opencode.json
 .opencode/
+
+# Estado del sistema de memoria: se reescribe solo, no va al repo
+.memory/
