@@ -27,28 +27,41 @@ construye acá y se valida allá. Nada debe asumir en el código qué modelos ex
 ## Poner en marcha
 
 ```bash
-# 1. La credencial nunca se versiona. Una de las dos:
-read -s "?Token Databricks: " T && echo "DATABRICKS_TOKEN=$T" > .env && chmod 600 .env && unset T
-# o bien:  databricks auth login --host <host>
+git clone https://github.com/luxitoppsai/cuy-cli.git && cd cuy-cli
+python3 instalar.py
+```
 
-# 2. Descubrir el workspace y generar la configuración
-python3 generar_config.py --host https://<tu-workspace>.cloud.databricks.com
+Eso es todo. El instalador verifica que tengas Node, pide el token sin mostrarlo en
+pantalla ni dejarlo en el historial, descubre qué modelos sirve tu workspace, genera la
+configuración, instala OpenCode local al proyecto y **hace una llamada real para
+confirmar que responde** antes de decir que terminó.
 
-# 3. Instalar y usar
-npm install
+Después:
+
+```bash
 ./node_modules/.bin/opencode
 ```
 
-El paso 2 es lo que hace portable el proyecto: consulta los endpoints servidos, sondea
-el tope de tokens de cada uno, descarta los que no respetan el contrato OpenAI, y elige
-modelo principal y auxiliar. **En el workspace del trabajo genera la configuración de los
-Claude que tengas sin que averigües nada a mano.**
+**Al cambiar de workspace** —de tu entorno de pruebas al del trabajo— volvés a correr
+`python3 instalar.py` y se reconfigura solo. En el Databricks del trabajo detecta los
+Claude que tengas y los ordena por nivel (haiku < sonnet < opus) sin que averigües nada.
+
+### Opciones
 
 ```bash
-python3 generar_config.py --rapido           # sin sondear límites (más veloz)
-bash spike/01-conexion.sh                    # prueba la API cruda, sin capas
-python3 -m unittest discover tests           # pruebas
+python3 instalar.py --host https://...     # sin preguntar el workspace
+python3 instalar.py --rapido               # no sondear límites de tokens (más veloz)
+python3 instalar.py --sin-verificar        # omitir la llamada de prueba final
 ```
+
+### Otras herramientas
+
+```bash
+python3 generar_config.py --host https://...   # solo regenerar la configuración
+bash spike/01-conexion.sh                      # probar la API cruda, sin capas
+python3 -m unittest discover tests             # pruebas
+```
+
 
 ## Gotchas encontrados
 

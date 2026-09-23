@@ -10,3 +10,6 @@ node_modules/
 node_modules/
 package-lock.json
 spike/tarea/opencode.json
+
+# Configuración específica del entorno: la genera instalar.py (D7 del RFC)
+opencode.json
