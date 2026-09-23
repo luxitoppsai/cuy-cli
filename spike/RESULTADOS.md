@@ -116,6 +116,44 @@ riesgo a verificar, no como hecho.
 Importa igual para el trabajo: los Claude de Databricks con *extended thinking* podrían
 devolver una forma análoga.
 
+## Hallazgo 4: funciona todo menos editar archivos
+
+Aislando capacidad por capacidad con `llama-4-maverick`, el resultado es nítido:
+
+| Capacidad | Resultado |
+|---|---|
+| Conversación simple | **Funciona** |
+| Herramienta bash (`ls`) | **Funciona** |
+| Herramienta bash con comando que **falla** | **Funciona** — identificó bien el test roto |
+| Leer archivos + glob, en varios turnos | **Funciona** |
+| **Editar archivos** | **Cuelga en silencio** — sin salida, sin error, sin cambio |
+
+La edición no deja rastro en el log: no hay excepción ni invocación registrada. Por eso
+la tarea completa parecía "colgarse" — llegaba hasta el punto de editar y ahí moría.
+
+### Esto confirma la tesis central del RFC, en nuestro propio entorno
+
+La herramienta `Edit` de OpenCode usa `old_string`/`new_string`, que es exactamente la
+superficie para la que **Claude está post-entrenado** (§2.2 del RFC). `llama-4-maverick`
+no lo está, y falla justo ahí — no en leer, no en ejecutar comandos, no en razonar:
+**en producir la llamada de edición con el formato exacto**.
+
+Es el modo de fallo que la investigación predecía, observado de primera mano. Y es una
+buena noticia para el proyecto: **lo que se rompe acá es precisamente lo que Claude hace
+bien**, y el workspace del trabajo tiene Claude.
+
+### Consecuencias
+
+1. **En Community no se puede validar el ciclo completo.** Todo menos editar, sí. Es un
+   límite del entorno de desarrollo, no del diseño — conviene asumirlo y no perder
+   tiempo peleándolo.
+2. **La validación de la edición se hace en el trabajo**, con Claude. Es la prueba que
+   decide si el producto sirve.
+3. Si hiciera falta soportar bien modelos de pesos abiertos, la salida conocida es darles
+   **su propia superficie de edición** (§2.2.1) en vez de forzarlos a `old_string`/
+   `new_string`. Eso sí sería motivo legítimo de fork o plugin — el primero que aparece
+   en todo el spike.
+
 ## Lo que Databricks sí hace bien
 
 Descartado como fuente de problemas, todo verificado:
