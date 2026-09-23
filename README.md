@@ -42,6 +42,10 @@ Después:
 ./node_modules/.bin/opencode
 ```
 
+También reparte los roles entre los modelos que encontró (D3 del RFC): el capaz ejecuta
+y edita, el barato planifica y explora. OpenCode liga un modelo a cada agente de forma
+nativa, así que esto es configuración — no hay ninguna modificación al harness.
+
 **Al cambiar de workspace** —de tu entorno de pruebas al del trabajo— volvés a correr
 `python3 instalar.py` y se reconfigura solo. En el Databricks del trabajo detecta los
 Claude que tengas y los ordena por nivel (haiku < sonnet < opus) sin que averigües nada.

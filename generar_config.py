@@ -166,6 +166,31 @@ def _tamano_estimado(endpoint: str) -> float:
     return max(parametros) if parametros else 50.0
 
 
+def construir_agentes(por_tamano: list[str]) -> dict:
+    """Asigna un modelo a cada agente según su rol (D3 del RFC).
+
+    OpenCode liga un modelo a cada agente de forma nativa, así que el ruteo por rol es
+    configuración y no hace falta tocar el harness. El criterio: planificar y explorar
+    son tareas de lectura y razonamiento donde un modelo barato alcanza; ejecutar
+    —leer, editar, correr comandos— es donde conviene el modelo capaz.
+
+    :param por_tamano: Endpoints usables, de menor a mayor capacidad estimada.
+    :returns: Bloque ``agent`` para la config, o ``{}`` si no hay con qué decidir.
+    """
+    if len(por_tamano) < 2:
+        return {}
+    capaz, barato = por_tamano[-1], por_tamano[0]
+    return {
+        # Ejecuta y edita: es donde más pesa la capacidad del modelo.
+        "build": {"model": f"databricks/{capaz}"},
+        # Planifica sin permiso de editar ni ejecutar (lo trae OpenCode por defecto).
+        "plan": {"model": f"databricks/{barato}"},
+        # Subagentes de solo lectura: explorar y buscar no justifican el modelo caro.
+        "explore": {"model": f"databricks/{barato}"},
+        "scout": {"model": f"databricks/{barato}"},
+    }
+
+
 def construir_config(host: str, endpoints: list[dict], detalles: dict) -> dict:
     """Arma el `opencode.json` a partir de lo descubierto.
 
@@ -212,6 +237,9 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict) -> dict:
     }
     if principal:
         config["model"] = f"databricks/{principal}"
+    agentes = construir_agentes(por_tamano)
+    if agentes:
+        config["agent"] = agentes
     # Sin esto OpenCode elige un modelo del catálogo que no existe en el workspace
     # y devuelve 404 en cada sesión, visible solo en su log.
     if auxiliar:

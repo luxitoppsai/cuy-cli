@@ -94,5 +94,27 @@ class ConstruirConfig(unittest.TestCase):
         )
 
 
+
+class RuteoPorRol(unittest.TestCase):
+    """D3 del RFC: cada rol usa el modelo que le corresponde, sin tocar el harness."""
+
+    def test_planificar_usa_el_barato_y_ejecutar_el_capaz(self):
+        agentes = gc.construir_agentes([
+            "databricks-claude-haiku-4-5",
+            "databricks-claude-sonnet-4-5",
+            "databricks-claude-opus-4-1",
+        ])
+        self.assertEqual(agentes["build"]["model"], "databricks/databricks-claude-opus-4-1")
+        self.assertEqual(agentes["plan"]["model"], "databricks/databricks-claude-haiku-4-5")
+
+    def test_los_subagentes_de_lectura_usan_el_barato(self):
+        agentes = gc.construir_agentes(["databricks-gemma-3-12b", "databricks-gpt-oss-120b"])
+        for rol in ("explore", "scout"):
+            self.assertEqual(agentes[rol]["model"], "databricks/databricks-gemma-3-12b")
+
+    def test_con_un_solo_modelo_no_rutea(self):
+        """Repartir roles entre un único modelo no aporta nada."""
+        self.assertEqual(gc.construir_agentes(["databricks-gemma-3-12b"]), {})
+
 if __name__ == "__main__":
     unittest.main()
