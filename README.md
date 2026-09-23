@@ -67,6 +67,34 @@ python3 -m unittest discover tests             # pruebas
 ```
 
 
+## Límites y permisos
+
+Dos controles distintos, que se configuran por separado.
+
+**Qué puede hacer.** La instalación deja una política pensada para equipo: leer, buscar
+y navegar no piden permiso; correr pruebas y git de solo lectura tampoco; lo irreversible
+—`rm -rf`, `sudo`, `git push --force`, `git reset --hard`, ejecutar lo que se descarga de
+internet— está **bloqueado**, no preguntado; y lo demás pregunta.
+
+El criterio es que si el agente pregunta por todo, la gente aprueba sin leer y el control
+deja de servir. Se ajusta en el bloque `permission` de `opencode.json`, con patrones por
+comando y override por agente.
+
+> En modo headless (`opencode run`) una acción `ask` no tiene quién la responda y la
+> sesión queda esperando. Para uso automatizado conviene dejar solo `allow` y `deny`.
+
+**Cuánto puede gastar.** OpenCode cuenta tokens pero no permite ponerles tope: un agente
+en loop gasta hasta que alguien mire. El plugin `plugin/presupuesto.js` agrega ese límite
+y corta la sesión al alcanzarlo, avisando antes al 80%.
+
+```bash
+CUY_LIMITE_TOKENS=300000 ./node_modules/.bin/opencode    # default
+CUY_LIMITE_TOKENS=0 ./node_modules/.bin/opencode         # sin tope
+```
+
+Se cuenta en tokens y no en dólares porque el precio de un endpoint de Databricks depende
+de la modalidad contratada y no viaja en la respuesta; los tokens sí son exactos.
+
 ## Gotchas encontrados
 
 - **El límite de tokens es por modelo**, no global (`gpt-oss-120b`: 25000,
