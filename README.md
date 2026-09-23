@@ -24,16 +24,30 @@ La superficie de Model Serving es idéntica en los dos, así que la integración
 construye acá y se valida allá. Nada debe asumir en el código qué modelos existen
 (decisión D7 del RFC).
 
-## Correr el spike
+## Poner en marcha
 
 ```bash
-# La credencial nunca se versiona. Una de las dos:
+# 1. La credencial nunca se versiona. Una de las dos:
 read -s "?Token Databricks: " T && echo "DATABRICKS_TOKEN=$T" > .env && chmod 600 .env && unset T
 # o bien:  databricks auth login --host <host>
 
-bash spike/01-conexion.sh                    # prueba la API sin capas intermedias
-npm install                                  # instala OpenCode local al proyecto
-./node_modules/.bin/opencode                 # abre el agente con la config de Databricks
+# 2. Descubrir el workspace y generar la configuración
+python3 generar_config.py --host https://<tu-workspace>.cloud.databricks.com
+
+# 3. Instalar y usar
+npm install
+./node_modules/.bin/opencode
+```
+
+El paso 2 es lo que hace portable el proyecto: consulta los endpoints servidos, sondea
+el tope de tokens de cada uno, descarta los que no respetan el contrato OpenAI, y elige
+modelo principal y auxiliar. **En el workspace del trabajo genera la configuración de los
+Claude que tengas sin que averigües nada a mano.**
+
+```bash
+python3 generar_config.py --rapido           # sin sondear límites (más veloz)
+bash spike/01-conexion.sh                    # prueba la API cruda, sin capas
+python3 -m unittest discover tests           # pruebas
 ```
 
 ## Gotchas encontrados
