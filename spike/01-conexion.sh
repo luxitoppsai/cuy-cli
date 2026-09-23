@@ -7,12 +7,14 @@
 #   3. ¿Funciona el prompt caching?                    (criterio de aceptación)
 #   4. ¿Responde también la superficie OpenAI-compatible? (plan B)
 #
-# No imprime el token nunca. Uso:  bash spike/01-conexion.sh [modelo]
+# No imprime el token nunca.
+# Uso:  DATABRICKS_HOST=https://... bash spike/01-conexion.sh [endpoint]
 
 set -uo pipefail
 
-HOST="https://dbc-xxxxxxxx-xxxx.cloud.databricks.com"
-MODELO="${1:-databricks-claude-sonnet-4}"
+# El host es parámetro, no constante: el mismo script sirve en cualquier workspace (D7).
+HOST="${DATABRICKS_HOST:-}"
+MODELO="${1:-databricks-gpt-oss-120b}"
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # --- Credencial: .env, variable de entorno, o el CLI de Databricks -------------
@@ -22,6 +24,10 @@ fi
 if [[ -z "${DATABRICKS_TOKEN:-}" ]] && command -v databricks >/dev/null 2>&1; then
   DATABRICKS_TOKEN="$(databricks auth token --host "$HOST" 2>/dev/null \
     | python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null)"
+fi
+if [[ -z "$HOST" ]]; then
+  echo "Falta DATABRICKS_HOST (ponelo en .env o en el entorno)."
+  exit 1
 fi
 if [[ -z "${DATABRICKS_TOKEN:-}" ]]; then
   echo "No hay credencial. Poné el token en $RAIZ/.env o corré 'databricks auth login'."
