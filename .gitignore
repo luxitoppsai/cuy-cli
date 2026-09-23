@@ -1,0 +1,12 @@
+# Nunca versionar credenciales
+.env
+*.token
+.databrickscfg
+
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
+node_modules/
+package-lock.json
+spike/tarea/opencode.json

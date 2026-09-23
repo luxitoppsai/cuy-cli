@@ -1,0 +1,66 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "databricks": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Databricks (Community)",
+      "options": {
+        "baseURL": "https://dbc-xxxxxxxx-xxxx.cloud.databricks.com/serving-endpoints",
+        "apiKey": "{env:DATABRICKS_TOKEN}"
+      },
+      "models": {
+        "databricks-gpt-oss-120b": {
+          "name": "GPT-OSS 120B",
+          "limit": {
+            "context": 128000,
+            "output": 24000
+          }
+        },
+        "databricks-qwen35-122b-a10b": {
+          "name": "Qwen3.5 122B",
+          "limit": {
+            "context": 128000,
+            "output": 24000
+          }
+        },
+        "databricks-qwen3-next-80b-a3b-instruct": {
+          "name": "Qwen3 Next 80B",
+          "limit": {
+            "context": 128000,
+            "output": 8000
+          }
+        },
+        "databricks-llama-4-maverick": {
+          "name": "Llama 4 Maverick",
+          "limit": {
+            "context": 128000,
+            "output": 8000
+          }
+        },
+        "databricks-meta-llama-3-3-70b-instruct": {
+          "name": "Llama 3.3 70B",
+          "limit": {
+            "context": 128000,
+            "output": 8000
+          }
+        },
+        "databricks-gpt-oss-20b": {
+          "name": "GPT-OSS 20B",
+          "limit": {
+            "context": 128000,
+            "output": 24000
+          }
+        },
+        "databricks-gemma-3-12b": {
+          "name": "Gemma 3 12B",
+          "limit": {
+            "context": 128000,
+            "output": 8000
+          }
+        }
+      }
+    }
+  },
+  "model": "databricks/databricks-llama-4-maverick",
+  "small_model": "databricks/databricks-gemma-3-12b"
+}
