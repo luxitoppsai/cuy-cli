@@ -156,18 +156,19 @@ def generar(host: str, token: str, rapido: bool) -> dict:
 
 
 def instalar_plugin() -> None:
-    """Deja el plugin de presupuesto donde OpenCode lo busca.
+    """Deja los plugins donde OpenCode los busca.
 
     Se copia en vez de enlazarse para que siga funcionando si el repo se mueve.
 
     :returns: Nada.
     """
-    origen = RAIZ / "plugin" / "presupuesto.js"
     destino_dir = RAIZ / ".opencode" / "plugin"
     destino_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(origen, destino_dir / "presupuesto.js")
+    for nombre in ("presupuesto.js", "auditoria.js"):
+        shutil.copy2(RAIZ / "plugin" / nombre, destino_dir / nombre)
     limite = os.environ.get("CUY_LIMITE_TOKENS", "300000")
     print(f"  ✓ Tope de presupuesto activo ({int(limite):,} tokens por sesión)".replace(",", "."))
+    print("  ✓ Registro de auditoría activo (python3 auditar.py para leerlo)")
 
 
 def instalar_opencode(npm: str) -> pathlib.Path:

@@ -95,6 +95,31 @@ CUY_LIMITE_TOKENS=0 ./node_modules/.bin/opencode         # sin tope
 Se cuenta en tokens y no en dólares porque el precio de un endpoint de Databricks depende
 de la modalidad contratada y no viaja en la respuesta; los tokens sí son exactos.
 
+## Auditoría
+
+Cada sesión deja registro de qué tocó el agente y quién lo pidió, en
+`~/.local/share/cuy-cli/auditoria.jsonl`.
+
+```bash
+python3 auditar.py                 # resumen de los últimos 7 días
+python3 auditar.py --comandos      # todos los comandos ejecutados
+python3 auditar.py --archivos      # todos los archivos modificados
+python3 auditar.py --usuario ana --dias 30
+```
+
+Se registra **qué** se hizo, no el contenido: rutas de archivo pero no su texto,
+comandos pero no su salida. Un registro de auditoría con el código adentro es una
+filtración esperando ocurrir, y crece sin control. También quedan los permisos que la
+política consultó o bloqueó, que es la mitad que no aparece en ningún otro lado.
+
+Retención de 90 días por defecto (`CUY_RETENCION_DIAS`), y se apaga con
+`CUY_AUDITORIA_OFF=1`.
+
+> **Es atribución, no prueba.** El archivo lo escribe el mismo usuario cuya actividad
+> registra, así que puede editarlo. Sirve para saber qué hizo el agente y repartir
+> consumo, no para sostener una acusación. Para eso habría que centralizarlo fuera del
+> alcance del usuario — hoy fuera de alcance a propósito.
+
 ## Gotchas encontrados
 
 - **El límite de tokens es por modelo**, no global (`gpt-oss-120b`: 25000,
