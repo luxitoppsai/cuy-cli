@@ -15,11 +15,22 @@ const pruebas = [];
 const prueba = (nombre, fn) => pruebas.push([nombre, fn]);
 const temporal = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "cuy-")), "gasto.json");
 
-prueba("la tarifa de Haiku 4.5 es la real de Databricks", () => {
-  // Confirmada: 14.286 / 71.429 DBU, que a $0.07 dan $1 y $5 por millón.
-  assert.deepEqual(dbuDe("databricks-claude-haiku-4-5"), { entrada: 14.286, salida: 71.429 });
-  const costo = costoDe({ input_tokens: 1_000_000, output_tokens: 0 }, "claude-haiku-4-5");
-  assert.equal(Math.round(costo * 100) / 100, 1);
+prueba("las tarifas de Claude son las reales de Databricks", () => {
+  // A $0.07/DBU: Haiku $1/$5, Sonnet $3/$15, Opus $5/$25 por millón.
+  const porMillon = (modelo, campo) =>
+    Math.round(costoDe({ [campo]: 1_000_000 }, modelo) * 100) / 100;
+  assert.equal(porMillon("claude-haiku-4-5", "input_tokens"), 1);
+  assert.equal(porMillon("claude-haiku-4-5", "output_tokens"), 5);
+  assert.equal(porMillon("claude-sonnet-4", "input_tokens"), 3);
+  assert.equal(porMillon("claude-opus-4-1", "input_tokens"), 5);
+  assert.equal(porMillon("claude-opus-4-1", "output_tokens"), 25);
+});
+
+prueba("Opus en Databricks no cuesta lo que la lista de Anthropic", () => {
+  // Databricks lo factura a un tercio: $25 la salida, no $75. Derivarlo de precios
+  // públicos daba números muy equivocados.
+  const salida = costoDe({ output_tokens: 1_000_000 }, "claude-opus-4-1");
+  assert.ok(salida < 30, `Opus salida deberia rondar $25, dio $${salida}`);
 });
 
 prueba("reconoce la tarifa en DBU por familia del modelo", () => {

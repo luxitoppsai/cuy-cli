@@ -191,18 +191,18 @@ contrato. El cálculo son dos factores, ambos declarables:
 CUY_USD_POR_DBU=0.05 cuy.cmd     # si tu dólar por DBU no es 0.07
 ```
 
-Origen de cada tarifa, porque no todas tienen la misma confianza:
+Tarifas reales de Databricks para los Claude, en DBU por millón de tokens:
 
-| Modelo | DBU (entrada / salida) | Origen |
+| Modelo | DBU entrada / salida | USD a $0.07/DBU |
 |---|---|---|
-| Haiku 4.5 | 14.286 / 71.429 | real |
-| Sonnet | 42.857 / 214.286 | real |
-| Modelos abiertos | ver código | tabla publicada |
-| **Opus** | 214.286 / 1071.43 | **derivada, sin confirmar** |
+| Haiku 4.5 | 14.286 / 71.429 | $1 / $5 |
+| Sonnet | 42.857 / 214.286 | $3 / $15 |
+| Opus | 71.429 / 357.143 | $5 / $25 |
 
-La de Opus es la única estimada, y es la del modelo principal: **conviene verificarla**
-contra la página de precios de tu empresa. Un modelo sin tarifa conocida suma **cero** en
-vez de inventar un número.
+**No coinciden con la lista de Anthropic**: Opus se factura a un tercio de ella. Derivar
+las tarifas de precios públicos —como se intentó primero— daba números muy equivocados.
+
+Un modelo sin tarifa conocida suma **cero** en vez de inventar un número.
 
 
 ## Auditoría
