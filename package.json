@@ -1,5 +1,8 @@
 {
+  "name": "cuy-cli",
+  "private": true,
+  "description": "CLI de codificaci\u00f3n ag\u00e9ntica sobre Databricks Model Serving",
   "dependencies": {
-    "opencode-ai": "^1.18.32"
+    "opencode-ai": "1.18.32"
   }
 }

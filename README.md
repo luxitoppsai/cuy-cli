@@ -120,6 +120,26 @@ Retención de 90 días por defecto (`CUY_RETENCION_DIAS`), y se apaga con
 > consumo, no para sostener una acusación. Para eso habría que centralizarlo fuera del
 > alcance del usuario — hoy fuera de alcance a propósito.
 
+## Qué vive dónde
+
+El repo tiene **solo código propio**: el instalador, el generador de configuración, los
+plugins, las pruebas y la documentación. **OpenCode no está en el repo** — se baja de npm
+al instalar (`node_modules`, unos 286 MB, ignorados por git).
+
+La versión está **fijada exacta** (`opencode-ai: 1.18.32`, sin `^`) y el
+`package-lock.json` está versionado. Para una herramienta de equipo importa más que todos
+tengan exactamente lo mismo que recibir mejoras automáticas: OpenCode itera a diario, y
+el generador escribe configuración para un esquema concreto (`small_model`, `limit`,
+agentes). Si cambia entre versiones, a uno le funciona y a otro no.
+
+**Para subir de versión**, que es un acto deliberado:
+
+```bash
+npm install opencode-ai@<nueva-version> --save-exact
+python3 instalar.py --sin-verificar   # regenerar config por si cambió el esquema
+./node_modules/.bin/opencode          # probar antes de commitear el lock
+```
+
 ## Gotchas encontrados
 
 - **El límite de tokens es por modelo**, no global (`gpt-oss-120b`: 25000,
