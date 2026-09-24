@@ -7,32 +7,44 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  precioDe, costoDe, buscarUso, evaluar, mesActual, leerGasto, sumarGasto,
-  PRECIOS_POR_DEFECTO,
+  dbuDe, costoDe, buscarUso, evaluar, mesActual, leerGasto, sumarGasto,
+  DBU_POR_DEFECTO, USD_POR_DBU,
 } from "../plugin/lib/presupuesto-core.js";
 
 const pruebas = [];
 const prueba = (nombre, fn) => pruebas.push([nombre, fn]);
 const temporal = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "cuy-")), "gasto.json");
 
-prueba("reconoce el precio por familia del modelo", () => {
-  assert.deepEqual(precioDe("databricks-claude-opus-4-1"), PRECIOS_POR_DEFECTO.opus);
-  assert.deepEqual(precioDe("databricks-claude-haiku-4-5"), PRECIOS_POR_DEFECTO.haiku);
+prueba("reconoce la tarifa en DBU por familia del modelo", () => {
+  assert.deepEqual(dbuDe("databricks-claude-opus-4-1"), DBU_POR_DEFECTO.opus);
+  assert.deepEqual(dbuDe("databricks-claude-haiku-4-5"), DBU_POR_DEFECTO.haiku);
 });
 
-prueba("el precio declarado gana sobre el estimado", () => {
+prueba("la tarifa declarada gana sobre la estimada", () => {
   const propio = { "databricks-claude-opus-4-1": { entrada: 1, salida: 2 } };
-  assert.deepEqual(precioDe("databricks-claude-opus-4-1", propio), { entrada: 1, salida: 2 });
+  assert.deepEqual(dbuDe("databricks-claude-opus-4-1", propio), { entrada: 1, salida: 2 });
 });
 
-prueba("un modelo desconocido no tiene precio", () => {
-  assert.equal(precioDe("databricks-gemma-3-12b"), null);
+prueba("la clave más específica gana sobre la genérica", () => {
+  // "llama-3-1-8b" no debe caer en una coincidencia más corta.
+  assert.deepEqual(dbuDe("databricks-meta-llama-3-1-8b-instruct"), DBU_POR_DEFECTO["llama-3-1-8b"]);
 });
 
-prueba("calcula el costo con las tarifas de Opus", () => {
-  // 1M de entrada a $15 + 1M de salida a $75 = $90
-  const costo = costoDe({ input_tokens: 1_000_000, output_tokens: 1_000_000 }, "claude-opus-4-1");
-  assert.equal(Math.round(costo), 90);
+prueba("un modelo desconocido no tiene tarifa", () => {
+  assert.equal(dbuDe("databricks-gemma-3-12b"), null);
+});
+
+prueba("convierte DBU a dólares con el factor del contrato", () => {
+  // Sonnet: 42.857 DBU entrada + 214.286 salida, a $0.07/DBU = $3 + $15 = $18
+  const costo = costoDe({ input_tokens: 1_000_000, output_tokens: 1_000_000 }, "claude-sonnet-4");
+  assert.equal(Math.round(costo), 18);
+});
+
+prueba("un dólar por DBU distinto cambia el costo proporcionalmente", () => {
+  const uso = { input_tokens: 1_000_000, output_tokens: 1_000_000 };
+  const normal = costoDe(uso, "claude-sonnet-4", {}, USD_POR_DBU);
+  const doble = costoDe(uso, "claude-sonnet-4", {}, USD_POR_DBU * 2);
+  assert.equal(Math.round(doble), Math.round(normal * 2));
 });
 
 prueba("acepta los nombres de contador de OpenAI", () => {
@@ -41,7 +53,7 @@ prueba("acepta los nombres de contador de OpenAI", () => {
   assert.equal(a, b);
 });
 
-prueba("sin precio conocido el costo es cero, no un invento", () => {
+prueba("sin tarifa conocida el costo es cero, no un invento", () => {
   assert.equal(costoDe({ input_tokens: 999999 }, "modelo-raro"), 0);
 });
 

@@ -5,10 +5,10 @@
  * plugin como si fuera una fábrica de plugins, así que exportar funciones auxiliares
  * desde ahí rompe la carga —las invoca con el contexto del plugin como argumento—.
  *
- * **Por qué el precio se declara y no se lee.** Databricks devuelve tokens, nunca
- * costo: el precio depende de la modalidad contratada y del acuerdo de cada empresa.
- * Los valores por defecto son las tarifas públicas de Anthropic y sirven como
- * estimación; el número real se pone en `precios.json` (ver `PRECIOS_ARCHIVO`).
+ * **Por qué la tarifa se declara y no se lee.** Databricks devuelve tokens, nunca
+ * costo. Y no cobra en dólares por token sino en **DBU por millón de tokens**, con un
+ * dólar por DBU que depende del contrato de cada empresa. Por eso el cálculo son dos
+ * factores separados —tarifa en DBU y dólares por DBU— y ambos se pueden declarar.
  */
 
 import fs from "node:fs";
@@ -23,31 +23,48 @@ export const GASTO_ARCHIVO = process.env.CUY_GASTO ?? path.join(CARPETA, "gasto.
 export const PRECIOS_ARCHIVO = process.env.CUY_PRECIOS ?? path.join(CARPETA, "precios.json");
 
 /**
- * Precio por millón de tokens, como estimación.
- *
- * Son las tarifas públicas de Anthropic. **No son las de tu contrato**: para números
- * reales, escribí `precios.json` con la forma
- * ``{"databricks-claude-opus-4-1": {"entrada": 15, "salida": 75}}``.
+ * Dólares por DBU. Es el convenio estándar de Model Serving, pero **depende del
+ * contrato**: cada empresa negocia el suyo y varía por nube y región.
  */
-export const PRECIOS_POR_DEFECTO = {
-  opus: { entrada: 15, salida: 75 },
-  sonnet: { entrada: 3, salida: 15 },
-  haiku: { entrada: 0.8, salida: 4 },
+export const USD_POR_DBU = Number(process.env.CUY_USD_POR_DBU ?? 0.07);
+
+/**
+ * Tarifas en **DBU por millón de tokens**, que es como las publica Databricks.
+ *
+ * Databricks no cobra en dólares por token sino en DBU, y el dólar por DBU depende del
+ * contrato: por eso se separan las dos cosas en vez de guardar un precio en dólares.
+ *
+ * Los valores de Sonnet y de los modelos abiertos salen de la tabla publicada de
+ * Databricks. Los de Opus y Haiku están **derivados** de las tarifas públicas de
+ * Anthropic dividido el DBU estándar — no de una tabla publicada—, así que son la
+ * parte más floja de esta estimación.
+ *
+ * Para los números de tu contrato, escribí `precios.json` con la misma forma.
+ */
+export const DBU_POR_DEFECTO = {
+  opus: { entrada: 214.286, salida: 1071.43 },
+  sonnet: { entrada: 42.857, salida: 214.286 },
+  haiku: { entrada: 11.43, salida: 57.14 },
+  "llama-4-maverick": { entrada: 7.143, salida: 21.429 },
+  "llama-3-1-8b": { entrada: 2.143, salida: 6.429 },
+  "gpt-oss-20b": { entrada: 1.0, salida: 4.286 },
 };
 
 /**
- * Busca el precio de un modelo, por nombre exacto o por familia.
+ * Busca la tarifa en DBU de un modelo, por nombre exacto o por familia.
  *
  * @param {string} modelo Identificador del modelo.
- * @param {object} tabla Precios declarados por el usuario.
- * @returns {{entrada: number, salida: number}|null} Precio, o null si no se conoce.
+ * @param {object} tabla Tarifas declaradas por el usuario, en DBU.
+ * @returns {{entrada: number, salida: number}|null} Tarifa, o null si no se conoce.
  */
-export function precioDe(modelo, tabla = {}) {
+export function dbuDe(modelo, tabla = {}) {
   if (!modelo) return null;
   if (tabla[modelo]) return tabla[modelo];
   const nombre = String(modelo).toLowerCase();
-  for (const [familia, precio] of Object.entries({ ...PRECIOS_POR_DEFECTO, ...tabla })) {
-    if (nombre.includes(familia)) return precio;
+  const combinadas = { ...DBU_POR_DEFECTO, ...tabla };
+  // Primero las claves más específicas: "llama-3-1-8b" debe ganarle a "llama".
+  for (const clave of Object.keys(combinadas).sort((a, b) => b.length - a.length)) {
+    if (nombre.includes(clave)) return combinadas[clave];
   }
   return null;
 }
@@ -61,17 +78,19 @@ export function precioDe(modelo, tabla = {}) {
  *
  * @param {object} uso Objeto de uso de la respuesta.
  * @param {string} modelo Modelo que la produjo.
- * @param {object} tabla Precios declarados.
- * @returns {number} Costo en dólares; 0 si no se puede calcular.
+ * @param {object} tabla Tarifas declaradas, en DBU por millón de tokens.
+ * @param {number} usdPorDbu Dólares por DBU según el contrato.
+ * @returns {number} Costo en dólares; 0 si no se conoce la tarifa del modelo.
  */
-export function costoDe(uso, modelo, tabla = {}) {
+export function costoDe(uso, modelo, tabla = {}, usdPorDbu = USD_POR_DBU) {
   if (!uso || typeof uso !== "object") return 0;
-  const precio = precioDe(modelo, tabla);
-  if (!precio) return 0;
+  const dbu = dbuDe(modelo, tabla);
+  if (!dbu) return 0;
   const entrada = Number(uso.input_tokens ?? uso.prompt_tokens ?? 0);
   const salida = Number(uso.output_tokens ?? uso.completion_tokens ?? 0);
   if (!Number.isFinite(entrada) || !Number.isFinite(salida)) return 0;
-  return (entrada * precio.entrada + salida * precio.salida) / 1_000_000;
+  const dbusConsumidos = (entrada * dbu.entrada + salida * dbu.salida) / 1_000_000;
+  return dbusConsumidos * usdPorDbu;
 }
 
 /**

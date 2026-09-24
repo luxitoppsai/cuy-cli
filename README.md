@@ -178,16 +178,23 @@ CUY_LIMITE_USD=3 cuy.cmd         # cambiar el tope (default: 10)
 CUY_LIMITE_USD=0 cuy.cmd         # sin tope
 ```
 
-**Sobre el precio.** Databricks devuelve tokens, nunca costo: depende de la modalidad
-contratada. Los cálculos usan las tarifas públicas de Anthropic como **estimación**.
-Para los números de tu contrato, creá `~/.local/share/cuy-cli/precios.json`:
+**Sobre el precio.** Databricks devuelve tokens, nunca costo. Y no cobra en dólares por
+token sino en **DBU por millón de tokens**, con un valor del DBU que depende del
+contrato. El cálculo son dos factores, ambos declarables:
 
 ```json
-{ "databricks-claude-opus-4-1": { "entrada": 15, "salida": 75 } }
+// ~/.local/share/cuy-cli/precios.json — valores en DBU
+{ "databricks-claude-opus-4-1": { "entrada": 214.286, "salida": 1071.43 } }
 ```
 
-(dólares por millón de tokens). Un modelo sin precio conocido suma **cero** en vez de
-inventar un número.
+```bash
+CUY_USD_POR_DBU=0.05 cuy.cmd     # si tu dólar por DBU no es 0.07
+```
+
+Las tarifas de Sonnet y de los modelos abiertos salen de la tabla publicada de
+Databricks; **las de Opus y Haiku están derivadas** de las tarifas de Anthropic, no de
+una tabla publicada, así que son la parte más floja de la estimación. Un modelo sin
+tarifa conocida suma **cero** en vez de inventar un número.
 
 
 ## Auditoría

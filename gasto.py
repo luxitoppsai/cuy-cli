@@ -42,10 +42,14 @@ def main() -> int:
         for k in sorted(otros, reverse=True)[:6]:
             print(f"  {k}: ${float(otros[k]):.2f}")
 
-    print(f"\nPrecios: {'declarados en ' + str(PRECIOS) if PRECIOS.exists() else 'estimados con tarifas públicas de Anthropic'}")
+    usd_dbu = os.environ.get("CUY_USD_POR_DBU", "0.07")
+    print(f"\nTarifas: {'declaradas en ' + str(PRECIOS) if PRECIOS.exists() else 'estimadas'}"
+          f"  |  ${usd_dbu} por DBU")
     if not PRECIOS.exists():
-        print("  Para usar los de tu contrato, creá ese archivo:")
-        print('  {"databricks-claude-opus-4-1": {"entrada": 15, "salida": 75}}')
+        print("  Databricks cobra en DBU por millón de tokens, no en dólares por token.")
+        print("  Para usar las de tu contrato, creá ese archivo (valores en DBU):")
+        print('  {"databricks-claude-opus-4-1": {"entrada": 214.286, "salida": 1071.43}}')
+        print("  Y si tu dólar por DBU no es 0.07:  CUY_USD_POR_DBU=0.05")
     return 0
 
 
