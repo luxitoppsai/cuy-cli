@@ -276,6 +276,9 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict) -> dict:
 
     config = {
         "$schema": "https://opencode.ai/config.json",
+        # El nombre que aparece en las conversaciones. El logo y el nombre del programa
+        # están compilados en el binario y no se pueden cambiar sin recompilar.
+        "username": "cuy-cli",
         "permission": construir_permisos(),
         "provider": {
             "databricks": {

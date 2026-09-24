@@ -79,6 +79,27 @@ bash spike/01-conexion.sh                      # probar la API cruda (solo Unix)
 > `spike/01-conexion.sh`, que es una herramienta de diagnóstico, no parte del producto.
 
 
+## Aspecto
+
+El instalador deja un tema propio (`tema/cuy.json`) — paleta cálida de tierra, pensada
+para sesiones largas: los colores de identidad se reservan para lo que hay que mirar y el
+resto queda neutro para no competir con el código. **Se elige una vez**, dentro del
+agente:
+
+```
+/theme      →  elegí "cuy"
+```
+
+La elección queda persistida. No se puede fijar desde `opencode.json`: `theme` no es una
+clave válida de configuración en esta versión.
+
+El nombre que aparece en las conversaciones sí es configurable y ya viene puesto
+(`username: cuy-cli`).
+
+**Lo que no se puede cambiar sin recompilar** es el logo ASCII y el nombre "opencode" del
+arranque: están en el binario (`packages/opencode/src/cli/ui.ts` del fuente). Hacerlo
+implica mantener un binario propio — ver `ADR-001` en el vault.
+
 ## Límites y permisos
 
 Dos controles distintos, que se configuran por separado.
