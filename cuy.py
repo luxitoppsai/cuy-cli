@@ -58,16 +58,22 @@ def cargar_env() -> None:
 def buscar_binario() -> pathlib.Path | None:
     """Ubica el ejecutable a usar, prefiriendo el compilado desde el fork propio.
 
-    Si existe un binario propio (``instalar.py --compilar``) se usa ese, porque es el
-    que trae la marca de cuy-cli. Si no, el que instala npm.
+    Orden de preferencia: el descargado de la release, el compilado localmente, y
+    por último el de npm. Los dos primeros traen la marca de cuy-cli.
 
     En Windows npm crea un envoltorio ``.cmd``; en el resto, un enlace sin extensión.
 
     :returns: Ruta del ejecutable, o ``None`` si no hay ninguno.
     """
+    # 1) El descargado desde la release (camino por defecto del instalador).
+    descargado = RAIZ / "bin" / ("cuy.exe" if ES_WINDOWS else "cuy")
+    if descargado.exists():
+        return descargado
+    # 2) El compilado acá con --compilar.
     propio = sorted((RAIZ / "vendor" / "opencode" / "packages" / "opencode" / "dist").glob("*/bin/opencode*"))
     if propio:
         return propio[0]
+    # 3) El oficial de npm, sin la marca propia.
     base = RAIZ / "node_modules" / ".bin"
     candidatos = [base / "opencode.cmd", base / "opencode.exe"] if ES_WINDOWS else [base / "opencode"]
     return next((c for c in candidatos if c.exists()), None)

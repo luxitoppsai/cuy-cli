@@ -192,6 +192,63 @@ def buscar_bun() -> str | None:
     return next((str(c) for c in candidatos if c.exists()), None)
 
 
+RELEASE = "https://github.com/luxitoppsai/cuy-cli/releases/latest/download"
+
+# Nombre del binario publicado para cada plataforma, y dónde se guarda al bajarlo.
+PLATAFORMAS = {
+    ("Windows", "AMD64"): "cuy-windows-x64.exe",
+    ("Windows", "ARM64"): "cuy-windows-arm64.exe",
+    ("Darwin", "arm64"): "cuy-darwin-arm64",
+    ("Darwin", "x86_64"): "cuy-darwin-x64",
+    ("Linux", "x86_64"): "cuy-linux-x64",
+    ("Linux", "aarch64"): "cuy-linux-arm64",
+}
+
+
+def descargar_binario() -> pathlib.Path:
+    """Baja el binario ya compilado que corresponde a esta máquina.
+
+    Es el camino por defecto porque compilar en una máquina corporativa choca con tres
+    obstáculos reales —hace falta bun, ~2 GB de dependencias y que la red no intercepte
+    TLS— y ninguno tiene que ver con usar la herramienta. El binario sale del mismo
+    fuente que viene en `vendor/`, así que se puede reproducir con ``--compilar``.
+
+    :returns: Ruta del binario descargado.
+    :raises SystemExit: Si no hay binario para esta plataforma o falla la descarga.
+    """
+    import platform as plataforma_mod
+    import urllib.request
+
+    clave = (plataforma_mod.system(), plataforma_mod.machine())
+    nombre = PLATAFORMAS.get(clave)
+    if not nombre:
+        _error(
+            f"No hay binario publicado para {clave[0]} {clave[1]}.\n"
+            f"    Compilalo con:  {PY} instalar.py --compilar"
+        )
+
+    destino_dir = RAIZ / "bin"
+    destino_dir.mkdir(exist_ok=True)
+    destino = destino_dir / ("cuy.exe" if ES_WINDOWS else "cuy")
+    url = f"{RELEASE}/{nombre}"
+
+    print(f"  Descargando {nombre}...")
+    try:
+        with urllib.request.urlopen(url, timeout=600) as respuesta, open(destino, "wb") as salida:
+            shutil.copyfileobj(respuesta, salida)
+    except Exception as e:
+        _error(
+            f"No se pudo descargar el binario:\n    {url}\n    {e}\n"
+            f"\n    Alternativas:  {PY} instalar.py --compilar   (compilar acá)\n"
+            f"                   {PY} instalar.py --sin-compilar (binario de npm)"
+        )
+
+    if not ES_WINDOWS:
+        destino.chmod(0o755)
+    print(f"  ✓ Binario descargado ({destino.stat().st_size // 1024 // 1024} MB)")
+    return destino
+
+
 def exportar_certificados_del_sistema() -> pathlib.Path | None:
     """Vuelca los certificados raíz de Windows a un archivo PEM.
 
@@ -389,8 +446,10 @@ def main() -> int:
     parser.add_argument("--host", help="URL del workspace de Databricks")
     parser.add_argument("--rapido", action="store_true", help="No sondear los límites de tokens")
     parser.add_argument("--sin-verificar", action="store_true", help="No hacer la llamada de prueba")
+    parser.add_argument("--compilar", action="store_true",
+                        help="Compilar el binario acá en vez de descargarlo (necesita bun)")
     parser.add_argument("--sin-compilar", action="store_true",
-                        help="Usar el binario de npm en vez de compilar (más rápido, sin la marca propia)")
+                        help="Usar el binario oficial de npm (sin la marca propia)")
     args = parser.parse_args()
 
     print("Instalación de cuy-cli")
@@ -406,7 +465,12 @@ def main() -> int:
     config = generar(host, token, args.rapido)
 
     _paso(4, "Instalando el agente")
-    binario = instalar_opencode(npm) if args.sin_compilar else compilar_desde_fuente()
+    if args.sin_compilar:
+        binario = instalar_opencode(npm)
+    elif args.compilar:
+        binario = compilar_desde_fuente()
+    else:
+        binario = descargar_binario()
     instalar_plugin()
 
     _paso(5, "Verificando que responde")
@@ -422,14 +486,18 @@ def main() -> int:
     # el instalador: si ya se compiló antes, el lanzador prefiere el binario propio y
     # decir otra cosa sería mentir.
     import cuy
-    propio = "vendor" in str(cuy.buscar_binario() or binario)
+    # La marca propia la traen tanto el binario descargado como el compilado acá; el
+    # único sin marca es el de npm, que vive en node_modules.
+    en_uso = str(cuy.buscar_binario() or binario)
+    propio = "node_modules" not in en_uso
     print("\n" + "─" * 60)
     print("Listo. Para empezar:\n")
     print(f"  {lanzador}\n")
     # Decirlo explícito evita la confusión más común: creer que se compiló la marca
     # propia cuando en realidad se usó el binario de npm.
     if propio:
-        print("  Marca         : cuy-cli (binario compilado por vos)")
+        origen = "compilado acá" if "vendor" in en_uso else "descargado de la release"
+        print(f"  Marca         : cuy-cli ({origen})")
     else:
         print("  Marca         : OpenCode (binario de npm)")
         print(f"                  Para tener la tuya: {PY} instalar.py --compilar")
