@@ -24,38 +24,73 @@ La superficie de Model Serving es idéntica en los dos, así que la integración
 construye acá y se valida allá. Nada debe asumir en el código qué modelos existen
 (decisión D7 del RFC).
 
-## Poner en marcha
+## Instalación
 
-**Windows** (PowerShell o CMD):
+Hay **dos formas**, y la diferencia es solo la marca que ves al arrancar.
+
+### Opción A — rápida (un minuto)
+
+Usa el binario oficial de OpenCode. **Al arrancar vas a ver el logo de OpenCode**, no el
+de cuy-cli.
 
 ```
 git clone https://github.com/luxitoppsai/cuy-cli.git
 cd cuy-cli
-python instalar.py
-cuy.cmd
+python instalar.py          # en macOS/Linux: python3
 ```
 
-**macOS y Linux:**
+### Opción B — con la marca de cuy-cli
 
-```bash
-git clone https://github.com/luxitoppsai/cuy-cli.git && cd cuy-cli
-python3 instalar.py
-./cuy
+Compila el binario desde el fuente que viene en este repo. **Esta es la única forma de
+ver el logo de cuy-cli**: el logo y el nombre están dentro del binario y ninguna
+configuración los cambia.
+
+```
+python instalar.py --compilar
 ```
 
-El instalador verifica que tengas Node, pide el token sin mostrarlo en pantalla ni
-dejarlo en el historial, descubre qué modelos sirve tu workspace, genera la
-configuración, instala OpenCode local al proyecto y **hace una llamada real para
-confirmar que responde** antes de decir que terminó.
+Requiere [bun](https://bun.sh) y descarga ~2 GB de dependencias, así que tarda varios
+minutos la primera vez.
 
-**Usá siempre el lanzador** (`cuy.cmd` o `./cuy`), no `opencode` a secas: el lanzador
-aplica el blindaje de red. Sin él, OpenCode contacta `api.opencode.ai` durante una sesión
-normal aunque tu proveedor sea propio — verificado observando las conexiones reales del
-proceso ([spike/RED.md](./spike/RED.md)).
+| | Opción A | Opción B |
+|---|---|---|
+| Tiempo | ~1 minuto | ~15 minutos |
+| Logo al arrancar | OpenCode | **cuy-cli** |
+| Requiere bun | no | **sí** |
+| Todo lo demás | idéntico | idéntico |
 
-**Al cambiar de workspace** —de tu entorno de pruebas al del trabajo— volvés a correr el
-instalador y se reconfigura solo. En el Databricks del trabajo detecta los Claude que
-tengas y los ordena por nivel (haiku < sonnet < opus) sin que averigües nada.
+Al terminar, el instalador te dice cuál quedó:
+
+```
+  Marca         : cuy-cli (binario compilado por vos)
+```
+
+Si dice "OpenCode (binario de npm)", corriste la opción A.
+
+### Después, en los dos casos
+
+```
+cuy.cmd          # Windows
+./cuy            # macOS y Linux
+```
+
+**Usá siempre el lanzador**, no `opencode` a secas: aplica el blindaje de red. Sin él,
+OpenCode contacta `api.opencode.ai` durante una sesión normal aunque tu proveedor sea
+propio ([spike/RED.md](./spike/RED.md)).
+
+**Al cambiar de workspace** volvés a correr el instalador y se reconfigura solo. En el
+Databricks del trabajo detecta los Claude y los ordena por nivel sin que averigües nada.
+
+### Si `--compilar` falla
+
+Es lo más frágil del proceso. Dos fallas conocidas:
+
+- **`tree-sitter-powershell` falla al compilar** (necesita Visual Studio Build Tools en
+  Windows). Es una gramática de resaltado, **no es fatal**: si `node_modules` quedó
+  completo, volvé a correr el instalador y el build sigue.
+- **Falta bun**: `powershell -c "irm bun.sh/install.ps1 | iex"` en Windows.
+
+Si se complica, usá la opción A. Perdés el logo, no la herramienta.
 
 
 ### Opciones
@@ -79,41 +114,21 @@ bash spike/01-conexion.sh                      # probar la API cruda (solo Unix)
 > `spike/01-conexion.sh`, que es una herramienta de diagnóstico, no parte del producto.
 
 
-## Marca propia (opcional)
+## El fuente vive en este repo
 
-El logo y el nombre del programa están **dentro del binario**: no hay configuración que
-los cambie. Para tenerlos propios hay que compilar desde
-[el fork](https://github.com/luxitoppsai/opencode) (rama `cuy`):
+`vendor/opencode` trae el fork con `git subtree`, así que un `git clone` se lo lleva todo
+y compilar no requiere bajar nada más. Clonar pesa ~78 MB.
 
-```bash
-python3 instalar.py --compilar
-```
-
-Eso clona el fork, compila y deja el binario propio, que el lanzador prefiere
-automáticamente:
-
-```
-█▀▀▀ █  █ █  █   █▀▀▀ █    ▀█▀
-█    █  █ ▀▄▄▀   █    █     █
-▀▀▀▀ ▀▀▀▀   ▀    ▀▀▀▀ ▀▀▀▀ ▀▀▀
-
-  cuy run [message..]     run cuy-cli with a message
-```
-
-**Requiere [bun](https://bun.sh) y descarga ~2 GB de dependencias**, así que tarda varios
-minutos. Por eso es opcional: sin `--compilar` se usa el binario de npm, con versión
-fijada, y arranca en un minuto. La diferencia es solo la marca.
-
-**El fuente viene dentro de este repo**, en `vendor/opencode`, traído con `git subtree`
-desde el fork. Un `git clone` se lo lleva todo: no hay que bajar nada más para compilar.
-Clonar pesa ~78 MB.
-
-Los cambios de marca son tres archivos, en la rama `cuy` del fork, para que traer
-versiones nuevas de upstream sea rebasar un diff chico:
+Los cambios de marca son tres archivos, en la rama `cuy` del
+[fork](https://github.com/luxitoppsai/opencode). Para traer una versión nueva de upstream:
 
 ```bash
 git subtree pull --prefix=vendor/opencode https://github.com/luxitoppsai/opencode.git cuy --squash
 ```
+
+Al subir de versión conviene **repetir la auditoría de red** ([spike/RED.md](./spike/RED.md)):
+sus conclusiones valen para la versión auditada, no para cualquiera.
+
 
 ## Aspecto
 

@@ -313,9 +313,21 @@ def main() -> int:
         return 1
 
     lanzador = "cuy.cmd" if ES_WINDOWS else "./cuy"
+    # Se pregunta al lanzador cuál usará de verdad, en vez de informar lo que eligió
+    # el instalador: si ya se compiló antes, el lanzador prefiere el binario propio y
+    # decir otra cosa sería mentir.
+    import cuy
+    propio = "vendor" in str(cuy.buscar_binario() or binario)
     print("\n" + "─" * 60)
     print("Listo. Para empezar:\n")
     print(f"  {lanzador}\n")
+    # Decirlo explícito evita la confusión más común: creer que se compiló la marca
+    # propia cuando en realidad se usó el binario de npm.
+    if propio:
+        print("  Marca         : cuy-cli (binario compilado por vos)")
+    else:
+        print("  Marca         : OpenCode (binario de npm)")
+        print(f"                  Para tener la tuya: {PY} instalar.py --compilar")
     print(f"  Modelo principal : {config.get('model', '').split('/', 1)[-1]}")
     print(f"  Modelo auxiliar  : {config.get('small_model', '').split('/', 1)[-1]}")
     print("\nSi los modelos elegidos no son los que preferís, editá opencode.json.")
