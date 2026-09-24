@@ -187,18 +187,15 @@ def compilar_desde_fuente() -> pathlib.Path:
             "    Windows:     powershell -c \"irm bun.sh/install.ps1 | iex\""
         )
 
+    # El fuente viaja dentro de este repo (subtree en vendor/): un `git clone` se lo
+    # lleva todo y no hace falta bajar nada más para compilar.
     if not FUENTE.exists():
-        print(f"  Clonando el fork ({RAMA})...")
-        FUENTE.parent.mkdir(parents=True, exist_ok=True)
-        clon = subprocess.run(
-            ["git", "clone", "--depth", "1", "--branch", RAMA, FORK, str(FUENTE)],
-            capture_output=True, text=True,
+        _error(
+            f"No está el fuente en {FUENTE.relative_to(RAIZ)}.\n"
+            "    Debería venir con el repo. Traelo con:\n"
+            f"    git subtree add --prefix=vendor/opencode {FORK} {RAMA} --squash"
         )
-        if clon.returncode != 0:
-            _error(f"No se pudo clonar el fork:\n{clon.stderr[-400:]}")
-    else:
-        print("  Fuente ya clonado; actualizando...")
-        subprocess.run(["git", "-C", str(FUENTE), "pull", "--ff-only"], capture_output=True)
+    print(f"  Fuente: {FUENTE.relative_to(RAIZ)}")
 
     print("  Instalando dependencias (son ~2 GB, tarda varios minutos)...")
     dep = subprocess.run([bun, "install"], cwd=FUENTE, capture_output=True, text=True)

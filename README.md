@@ -104,8 +104,16 @@ automáticamente:
 minutos. Por eso es opcional: sin `--compilar` se usa el binario de npm, con versión
 fijada, y arranca en un minuto. La diferencia es solo la marca.
 
-El fork mantiene los cambios en tres archivos, en una rama aparte, para que traer
-versiones nuevas de upstream sea rebasar un diff chico.
+**El fuente viene dentro de este repo**, en `vendor/opencode`, traído con `git subtree`
+desde el fork. Un `git clone` se lo lleva todo: no hay que bajar nada más para compilar.
+Clonar pesa ~78 MB.
+
+Los cambios de marca son tres archivos, en la rama `cuy` del fork, para que traer
+versiones nuevas de upstream sea rebasar un diff chico:
+
+```bash
+git subtree pull --prefix=vendor/opencode https://github.com/luxitoppsai/opencode.git cuy --squash
+```
 
 ## Aspecto
 

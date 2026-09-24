@@ -16,3 +16,8 @@ opencode.json
 
 # Estado del sistema de memoria: se reescribe solo, no va al repo
 .memory/
+
+# Artefactos de compilación del agente: se generan, no se versionan
+vendor/opencode/node_modules/
+vendor/opencode/packages/*/dist/
+vendor/opencode/packages/*/node_modules/
