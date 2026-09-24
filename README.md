@@ -65,7 +65,9 @@ necesita bun, pero **vas a ver el logo de OpenCode**. Todo lo demás es idéntic
 
 Dos fallas conocidas al compilar:
 
-- **Falta bun** — `powershell -c "irm bun.sh/install.ps1 | iex"` en Windows.
+- **Falta bun** — `powershell -c "irm bun.sh/install.ps1 | iex"` en Windows. El
+  instalador lo busca también en `~/.bun/bin`, así que **no hace falta reiniciar la
+  terminal** después de instalarlo.
 - **`tree-sitter-powershell` falla** (necesita Visual Studio Build Tools en Windows). Es
   una gramática de resaltado y **no es fatal**: si `node_modules` quedó completo, volvé
   a correr el instalador y el build sigue.

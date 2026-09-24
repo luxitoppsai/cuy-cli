@@ -169,6 +169,29 @@ RAMA = "cuy"
 FUENTE = RAIZ / "vendor" / "opencode"
 
 
+def buscar_bun() -> str | None:
+    """Ubica bun, mirando también donde su instalador lo deja.
+
+    En Windows el instalador de bun agrega la ruta al PATH del sistema, pero **la
+    terminal ya abierta no la ve hasta reiniciarse**: buscar solo en el PATH hace que
+    parezca no instalado cuando sí lo está.
+
+    :returns: Ruta del ejecutable, o ``None`` si no aparece en ningún lado.
+    """
+    if (encontrado := shutil.which("bun")):
+        return encontrado
+    candidatos = [
+        pathlib.Path.home() / ".bun" / "bin" / ("bun.exe" if ES_WINDOWS else "bun"),
+        pathlib.Path("/usr/local/bin/bun"),
+        pathlib.Path("/opt/homebrew/bin/bun"),
+    ]
+    if ES_WINDOWS:
+        local = os.environ.get("LOCALAPPDATA")
+        if local:
+            candidatos.insert(1, pathlib.Path(local) / "bun" / "bun.exe")
+    return next((str(c) for c in candidatos if c.exists()), None)
+
+
 def compilar_desde_fuente() -> pathlib.Path:
     """Clona el fork propio y compila el binario con la marca de cuy-cli.
 
@@ -183,7 +206,7 @@ def compilar_desde_fuente() -> pathlib.Path:
     :returns: Ruta del binario compilado.
     :raises SystemExit: Si falta bun o la compilación falla.
     """
-    bun = shutil.which("bun")
+    bun = buscar_bun()
     if not bun:
         _error(
             "Falta bun, necesario para compilar el binario propio.\n"
