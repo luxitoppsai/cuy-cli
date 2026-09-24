@@ -83,7 +83,7 @@ def resolver_host(indicado: str | None) -> str:
         return os.environ["DATABRICKS_HOST"].rstrip("/")
     if CONFIG.exists():
         try:
-            url = json.loads(CONFIG.read_text())["provider"]["databricks"]["options"]["baseURL"]
+            url = json.loads(CONFIG.read_text())["provider"][gc.PROVEEDOR]["options"]["baseURL"]
             previo = url.removesuffix("/serving-endpoints")
             respuesta = input(f"  Workspace [{previo}]: ").strip()
             return (respuesta or previo).rstrip("/")
@@ -157,7 +157,7 @@ def generar(host: str, token: str, rapido: bool) -> dict:
             print(f"    ✓ {nombre} (salida ≤ {limite})")
 
     config = gc.construir_config(host, endpoints, detalles)
-    if not config["provider"]["databricks"]["models"]:
+    if not config["provider"][PROVEEDOR]["models"]:
         _error("Ningún endpoint es usable: todos devuelven bloques en vez de texto.")
     CONFIG.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
     print(f"  ✓ {CONFIG.name} generado")
@@ -391,8 +391,8 @@ def instalar_plugin() -> None:
     # Se copia el árbol entero: los plugins importan su lógica desde `lib/`, que debe
     # viajar con ellos o la carga falla y deja la configuración nula.
     shutil.copytree(RAIZ / "plugin", destino_dir)
-    limite = os.environ.get("CUY_LIMITE_TOKENS", "300000")
-    print(f"  ✓ Tope de presupuesto activo ({int(limite):,} tokens por sesión)".replace(",", "."))
+    limite = os.environ.get("CUY_LIMITE_USD", "10")
+    print(f"  ✓ Tope de gasto activo (${limite} al mes, se libera solo al cambiar de mes)")
     print(f"  ✓ Registro de auditoría activo ({PY} auditar.py para leerlo)")
 
 

@@ -82,7 +82,7 @@ def buscar_binario() -> pathlib.Path | None:
 def main() -> int:
     cargar_env()
     os.environ.update(BLINDAJE)
-    os.environ.setdefault("CUY_LIMITE_TOKENS", "300000")
+    os.environ.setdefault("CUY_LIMITE_USD", "10")
 
     binario = buscar_binario()
     if not binario:

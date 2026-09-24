@@ -219,6 +219,12 @@ def construir_permisos() -> dict:
     return dict(PERMISOS_BASE)
 
 
+# Nombre propio del proveedor. **No puede ser "databricks"**: ese id ya existe en el
+# catálogo de models.dev y OpenCode fusiona los dos, así que `/models` termina listando
+# modelos del catálogo que este workspace no sirve.
+PROVEEDOR = "cuy"
+
+
 def construir_agentes(por_tamano: list[str]) -> dict:
     """Asigna un modelo a cada agente según su rol (D3 del RFC).
 
@@ -235,12 +241,12 @@ def construir_agentes(por_tamano: list[str]) -> dict:
     capaz, barato = por_tamano[-1], por_tamano[0]
     return {
         # Ejecuta y edita: es donde más pesa la capacidad del modelo.
-        "build": {"model": f"databricks/{capaz}"},
+        "build": {"model": f"{PROVEEDOR}/{capaz}"},
         # Planifica sin permiso de editar ni ejecutar (lo trae OpenCode por defecto).
-        "plan": {"model": f"databricks/{barato}"},
+        "plan": {"model": f"{PROVEEDOR}/{barato}"},
         # Subagentes de solo lectura: explorar y buscar no justifican el modelo caro.
-        "explore": {"model": f"databricks/{barato}"},
-        "scout": {"model": f"databricks/{barato}"},
+        "explore": {"model": f"{PROVEEDOR}/{barato}"},
+        "scout": {"model": f"{PROVEEDOR}/{barato}"},
     }
 
 
@@ -279,9 +285,13 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict) -> dict:
         # El nombre que aparece en las conversaciones. El logo y el nombre del programa
         # están compilados en el binario y no se pueden cambiar sin recompilar.
         "username": "cuy-cli",
+        # Solo el proveedor propio: sin esto, `/models` lista también los proveedores
+        # que el agente carga por su cuenta (OpenCode Zen y demás), que no se pueden
+        # usar acá y solo ensucian la elección.
+        "enabled_providers": [PROVEEDOR],
         "permission": construir_permisos(),
         "provider": {
-            "databricks": {
+            PROVEEDOR: {
                 "npm": "@ai-sdk/openai-compatible",
                 "name": "Databricks",
                 "options": {
@@ -293,14 +303,14 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict) -> dict:
         },
     }
     if principal:
-        config["model"] = f"databricks/{principal}"
+        config["model"] = f"{PROVEEDOR}/{principal}"
     agentes = construir_agentes(por_tamano)
     if agentes:
         config["agent"] = agentes
     # Sin esto OpenCode elige un modelo del catálogo que no existe en el workspace
     # y devuelve 404 en cada sesión, visible solo en su log.
     if auxiliar:
-        config["small_model"] = f"databricks/{auxiliar}"
+        config["small_model"] = f"{PROVEEDOR}/{auxiliar}"
     return config
 
 
@@ -339,7 +349,7 @@ def main() -> int:
         print(f"  {nombre:45s} {forma:12s} {marca}")
 
     config = construir_config(host, endpoints, detalles)
-    usables = len(config["provider"]["databricks"]["models"])
+    usables = len(config["provider"][PROVEEDOR]["models"])
     if not usables:
         sys.exit("\nNingún endpoint es usable: todos devuelven bloques en vez de string.")
 

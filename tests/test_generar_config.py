@@ -54,7 +54,7 @@ class ConstruirConfig(unittest.TestCase):
             "databricks-gpt-oss-120b": {"forma": "bloques", "limite": 24000},
             "databricks-meta-llama-3-3-70b-instruct": {"forma": "string", "limite": 8192},
         })
-        modelos = c["provider"]["databricks"]["models"]
+        modelos = c["provider"][gc.PROVEEDOR]["models"]
         self.assertNotIn("databricks-gpt-oss-120b", modelos)
         self.assertIn("databricks-meta-llama-3-3-70b-instruct", modelos)
 
@@ -63,8 +63,8 @@ class ConstruirConfig(unittest.TestCase):
             "databricks-claude-opus-4-1": {"forma": "string", "limite": 32000},
             "databricks-claude-haiku-4-5": {"forma": "string", "limite": 8192},
         })
-        self.assertEqual(c["model"], "databricks/databricks-claude-opus-4-1")
-        self.assertEqual(c["small_model"], "databricks/databricks-claude-haiku-4-5")
+        self.assertEqual(c["model"], f"{gc.PROVEEDOR}/databricks-claude-opus-4-1")
+        self.assertEqual(c["small_model"], f"{gc.PROVEEDOR}/databricks-claude-haiku-4-5")
 
     def test_declara_small_model_siempre(self):
         """Sin esto OpenCode apunta a un modelo del catálogo que no existe: 404 silencioso."""
@@ -77,19 +77,19 @@ class ConstruirConfig(unittest.TestCase):
             "databricks-qwen3-next-80b-a3b-instruct": {"forma": "string", "limite": 10000},
             "databricks-llama-4-maverick": {"forma": "string", "limite": 8192},
         })
-        modelos = c["provider"]["databricks"]["models"]
+        modelos = c["provider"][gc.PROVEEDOR]["models"]
         self.assertEqual(modelos["databricks-qwen3-next-80b-a3b-instruct"]["limit"]["output"], 10000)
         self.assertEqual(modelos["databricks-llama-4-maverick"]["limit"]["output"], 8192)
 
     def test_nunca_escribe_el_token(self):
         """La credencial se referencia por entorno; el archivo se versiona."""
         c = self._config({"databricks-gemma-3-12b": {"forma": "string", "limite": 8192}})
-        self.assertEqual(c["provider"]["databricks"]["options"]["apiKey"], "{env:DATABRICKS_TOKEN}")
+        self.assertEqual(c["provider"][gc.PROVEEDOR]["options"]["apiKey"], "{env:DATABRICKS_TOKEN}")
 
     def test_arma_bien_la_base_url(self):
         c = self._config({"databricks-gemma-3-12b": {"forma": "string", "limite": 8192}})
         self.assertEqual(
-            c["provider"]["databricks"]["options"]["baseURL"],
+            c["provider"][gc.PROVEEDOR]["options"]["baseURL"],
             self.HOST + "/serving-endpoints",
         )
 
@@ -104,13 +104,13 @@ class RuteoPorRol(unittest.TestCase):
             "databricks-claude-sonnet-4-5",
             "databricks-claude-opus-4-1",
         ])
-        self.assertEqual(agentes["build"]["model"], "databricks/databricks-claude-opus-4-1")
-        self.assertEqual(agentes["plan"]["model"], "databricks/databricks-claude-haiku-4-5")
+        self.assertEqual(agentes["build"]["model"], f"{gc.PROVEEDOR}/databricks-claude-opus-4-1")
+        self.assertEqual(agentes["plan"]["model"], f"{gc.PROVEEDOR}/databricks-claude-haiku-4-5")
 
     def test_los_subagentes_de_lectura_usan_el_barato(self):
         agentes = gc.construir_agentes(["databricks-gemma-3-12b", "databricks-gpt-oss-120b"])
         for rol in ("explore", "scout"):
-            self.assertEqual(agentes[rol]["model"], "databricks/databricks-gemma-3-12b")
+            self.assertEqual(agentes[rol]["model"], f"{gc.PROVEEDOR}/databricks-gemma-3-12b")
 
     def test_con_un_solo_modelo_no_rutea(self):
         """Repartir roles entre un único modelo no aporta nada."""

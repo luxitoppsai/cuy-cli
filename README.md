@@ -168,17 +168,27 @@ comando y override por agente.
 > En modo headless (`opencode run`) una acción `ask` no tiene quién la responda y la
 > sesión queda esperando. Para uso automatizado conviene dejar solo `allow` y `deny`.
 
-**Cuánto puede gastar.** OpenCode cuenta tokens pero no permite ponerles tope: un agente
-en loop gasta hasta que alguien mire. El plugin `plugin/presupuesto.js` agrega ese límite
-y corta la sesión al alcanzarlo, avisando antes al 80%.
+**Cuánto puede gastar.** OpenCode cuenta tokens pero no permite ponerles tope: un
+agente en loop gasta hasta que alguien mire. El plugin `plugin/presupuesto.js` acumula
+el gasto **por mes** y corta al llegar al límite. Se libera solo al cambiar de mes.
 
 ```bash
-CUY_LIMITE_TOKENS=300000 ./node_modules/.bin/opencode    # default
-CUY_LIMITE_TOKENS=0 ./node_modules/.bin/opencode         # sin tope
+python gasto.py                  # ver el acumulado y cuánto queda
+CUY_LIMITE_USD=3 cuy.cmd         # cambiar el tope (default: 10)
+CUY_LIMITE_USD=0 cuy.cmd         # sin tope
 ```
 
-Se cuenta en tokens y no en dólares porque el precio de un endpoint de Databricks depende
-de la modalidad contratada y no viaja en la respuesta; los tokens sí son exactos.
+**Sobre el precio.** Databricks devuelve tokens, nunca costo: depende de la modalidad
+contratada. Los cálculos usan las tarifas públicas de Anthropic como **estimación**.
+Para los números de tu contrato, creá `~/.local/share/cuy-cli/precios.json`:
+
+```json
+{ "databricks-claude-opus-4-1": { "entrada": 15, "salida": 75 } }
+```
+
+(dólares por millón de tokens). Un modelo sin precio conocido suma **cero** en vez de
+inventar un número.
+
 
 ## Auditoría
 
