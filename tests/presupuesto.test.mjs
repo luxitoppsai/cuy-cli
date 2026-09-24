@@ -15,6 +15,13 @@ const pruebas = [];
 const prueba = (nombre, fn) => pruebas.push([nombre, fn]);
 const temporal = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "cuy-")), "gasto.json");
 
+prueba("la tarifa de Haiku 4.5 es la real de Databricks", () => {
+  // Confirmada: 14.286 / 71.429 DBU, que a $0.07 dan $1 y $5 por millón.
+  assert.deepEqual(dbuDe("databricks-claude-haiku-4-5"), { entrada: 14.286, salida: 71.429 });
+  const costo = costoDe({ input_tokens: 1_000_000, output_tokens: 0 }, "claude-haiku-4-5");
+  assert.equal(Math.round(costo * 100) / 100, 1);
+});
+
 prueba("reconoce la tarifa en DBU por familia del modelo", () => {
   assert.deepEqual(dbuDe("databricks-claude-opus-4-1"), DBU_POR_DEFECTO.opus);
   assert.deepEqual(dbuDe("databricks-claude-haiku-4-5"), DBU_POR_DEFECTO.haiku);

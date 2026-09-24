@@ -34,17 +34,18 @@ export const USD_POR_DBU = Number(process.env.CUY_USD_POR_DBU ?? 0.07);
  * Databricks no cobra en dólares por token sino en DBU, y el dólar por DBU depende del
  * contrato: por eso se separan las dos cosas en vez de guardar un precio en dólares.
  *
- * Los valores de Sonnet y de los modelos abiertos salen de la tabla publicada de
- * Databricks. Los de Opus y Haiku están **derivados** de las tarifas públicas de
- * Anthropic dividido el DBU estándar — no de una tabla publicada—, así que son la
- * parte más floja de esta estimación.
+ * Origen de cada valor, porque no todos tienen la misma confianza:
+ * - `haiku` y `sonnet`: tarifas reales de Databricks (haiku confirmada por Luis).
+ * - modelos abiertos: tabla publicada de Databricks.
+ * - `opus`: **derivada** de la tarifa pública de Anthropic dividido el DBU estándar.
+ *   Es la única sin confirmar, y justo la del modelo principal: conviene verificarla.
  *
  * Para los números de tu contrato, escribí `precios.json` con la misma forma.
  */
 export const DBU_POR_DEFECTO = {
   opus: { entrada: 214.286, salida: 1071.43 },
   sonnet: { entrada: 42.857, salida: 214.286 },
-  haiku: { entrada: 11.43, salida: 57.14 },
+  haiku: { entrada: 14.286, salida: 71.429 },
   "llama-4-maverick": { entrada: 7.143, salida: 21.429 },
   "llama-3-1-8b": { entrada: 2.143, salida: 6.429 },
   "gpt-oss-20b": { entrada: 1.0, salida: 4.286 },

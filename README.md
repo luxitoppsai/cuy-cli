@@ -191,10 +191,18 @@ contrato. El cálculo son dos factores, ambos declarables:
 CUY_USD_POR_DBU=0.05 cuy.cmd     # si tu dólar por DBU no es 0.07
 ```
 
-Las tarifas de Sonnet y de los modelos abiertos salen de la tabla publicada de
-Databricks; **las de Opus y Haiku están derivadas** de las tarifas de Anthropic, no de
-una tabla publicada, así que son la parte más floja de la estimación. Un modelo sin
-tarifa conocida suma **cero** en vez de inventar un número.
+Origen de cada tarifa, porque no todas tienen la misma confianza:
+
+| Modelo | DBU (entrada / salida) | Origen |
+|---|---|---|
+| Haiku 4.5 | 14.286 / 71.429 | real |
+| Sonnet | 42.857 / 214.286 | real |
+| Modelos abiertos | ver código | tabla publicada |
+| **Opus** | 214.286 / 1071.43 | **derivada, sin confirmar** |
+
+La de Opus es la única estimada, y es la del modelo principal: **conviene verificarla**
+contra la página de precios de tu empresa. Un modelo sin tarifa conocida suma **cero** en
+vez de inventar un número.
 
 
 ## Auditoría
