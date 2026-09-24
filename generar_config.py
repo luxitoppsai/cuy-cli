@@ -481,11 +481,37 @@ def construir_agentes(por_tamano: list[str], ref) -> dict:
     }
 
 
+# Ventana de contexto por familia, en tokens. **No es cosmético**: la TUI muestra el
+# porcentaje de contexto como `tokens / limit.context`, así que un número equivocado da
+# un porcentaje equivocado —y es el número con el que uno decide si compactar—.
+CONTEXTO_POR_MILLON = {
+    "claude": 200_000,
+    "llama-4": 128_000,
+    "llama-3": 128_000,
+    "gpt-oss": 128_000,
+    "qwen": 32_000,
+}
+CONTEXTO_POR_DEFECTO = 128_000
+
+
+def contexto_de(endpoint: str) -> int:
+    """Ventana de contexto de un modelo, deducida de su nombre.
+
+    :param endpoint: Nombre del endpoint.
+    :returns: Tokens de contexto; el valor por defecto si el nombre no dice nada.
+    """
+    nombre = endpoint.lower()
+    for clave in sorted(CONTEXTO_POR_MILLON, key=len, reverse=True):
+        if clave in nombre:
+            return CONTEXTO_POR_MILLON[clave]
+    return CONTEXTO_POR_DEFECTO
+
+
 def _describir_modelo(endpoint: str, limite: int) -> dict:
     """Arma la entrada de un modelo: nombre legible, topes y tarifa."""
     modelo = {
         "name": _nombre_legible(endpoint),
-        "limit": {"context": 128000, "output": limite},
+        "limit": {"context": contexto_de(endpoint), "output": limite},
     }
     # Sin `cost`, OpenCode calcula cero y la TUI no muestra el gasto: el indicador
     # de la barra se omite cuando el costo es 0, no aparece en cero.

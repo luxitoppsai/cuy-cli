@@ -362,5 +362,30 @@ class ViaNativaDeAnthropic(unittest.TestCase):
         self.assertFalse(gc.es_claude("databricks-meta-llama-3-1-8b-instruct"))
 
 
+
+class VentanaDeContexto(unittest.TestCase):
+    """El denominador del porcentaje que muestra la TUI.
+
+    No es cosmético: es el número con el que uno decide si ya hay que compactar. Estaba
+    fijo en 128k para todos, así que en Claude —que tiene 200k— el porcentaje salía
+    inflado un 56%.
+    """
+
+    def test_claude_tiene_200k(self):
+        self.assertEqual(gc.contexto_de("databricks-claude-sonnet-4-5"), 200_000)
+
+    def test_un_modelo_desconocido_usa_el_valor_por_defecto(self):
+        self.assertEqual(gc.contexto_de("databricks-gemma-3-12b"), gc.CONTEXTO_POR_DEFECTO)
+
+    def test_la_config_declara_el_contexto_de_cada_modelo(self):
+        c = gc.construir_config(
+            "https://ejemplo.cloud.databricks.com",
+            [{"name": "databricks-claude-sonnet-4-5"}],
+            {"databricks-claude-sonnet-4-5": {"forma": "string", "limite": 8192}},
+        )
+        limite = c["provider"][gc.PROVEEDOR]["models"]["databricks-claude-sonnet-4-5"]["limit"]
+        self.assertEqual(limite["context"], 200_000)
+
+
 if __name__ == "__main__":
     unittest.main()
