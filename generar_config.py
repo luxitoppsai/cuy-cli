@@ -114,19 +114,76 @@ def sondear_limite(host: str, token: str, nombre: str) -> int:
     return SALIDA_POR_DEFECTO
 
 
+# Pregunta que empuja al modelo a razonar antes de contestar. Con un saludo trivial
+# muchos endpoints responden directo y nunca emiten el bloque de razonamiento que es
+# justamente lo que se está buscando.
+PREGUNTA_SONDA = (
+    "Un tren sale a las 14:35 y viaja 2h48m. Otro sale 40 minutos después y tarda "
+    "25 minutos menos. ¿Cuál llega primero y por cuánto?"
+)
+
+
+def _pedir_stream(url: str, token: str, cuerpo: dict, timeout: int = 90) -> tuple[int, list]:
+    """Hace una request en streaming y devuelve los fragmentos SSE parseados.
+
+    :returns: ``(código HTTP, lista de objetos de cada ``data:``)``.
+    """
+    datos = json.dumps({**cuerpo, "stream": True}).encode()
+    req = urllib.request.Request(
+        url, data=datos, method="POST",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+    fragmentos = []
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            for linea in r:
+                linea = linea.decode(errors="replace").strip()
+                if not linea.startswith("data:"):
+                    continue
+                carga = linea[5:].strip()
+                if carga == "[DONE]":
+                    break
+                try:
+                    fragmentos.append(json.loads(carga))
+                except json.JSONDecodeError:
+                    continue
+            return r.status, fragmentos
+    except urllib.error.HTTPError as e:
+        return e.code, []
+    except Exception:
+        return 0, fragmentos
+
+
 def detectar_forma(host: str, token: str, nombre: str) -> str:
     """Detecta si el endpoint respeta el contrato OpenAI para `content`.
 
     La especificación define `content` como string. Algunos endpoints de Databricks
     devuelven una lista de bloques tipados (razonamiento + texto), que los clientes
-    OpenAI-compatible no saben leer.
+    OpenAI-compatible no saben leer: fallan con ``expected string, received array``.
+
+    **Se sondea en streaming y con una pregunta que da trabajo**, porque así es como
+    corre el agente. La primera versión preguntaba "di: ok" sin streaming, y eso daba
+    falsos aprobados: Sonnet 4.5 pasaba la prueba y después reventaba en la primera
+    tarea real, cuando decidía razonar y emitía ``reasoning_summary`` como lista dentro
+    de ``delta.content``.
 
     :returns: ``"string"``, ``"bloques"`` o ``"desconocido"``.
     """
     url = f"{host}/serving-endpoints/{nombre}/invocations"
-    codigo, respuesta = _pedir(
-        url, token, {"messages": [{"role": "user", "content": "di: ok"}], "max_tokens": 2000}, timeout=90
-    )
+    cuerpo = {"messages": [{"role": "user", "content": PREGUNTA_SONDA}], "max_tokens": 2000}
+
+    codigo, fragmentos = _pedir_stream(url, token, cuerpo)
+    if codigo == 200 and fragmentos:
+        for fragmento in fragmentos:
+            for eleccion in fragmento.get("choices", []):
+                contenido = (eleccion.get("delta") or {}).get("content")
+                if isinstance(contenido, list):
+                    return "bloques"
+        return "string"
+
+    # Si el endpoint no hace streaming, se cae a la forma no-streaming antes de
+    # descartarlo: no poder sondear no es lo mismo que estar roto.
+    codigo, respuesta = _pedir(url, token, cuerpo, timeout=90)
     if codigo != 200:
         return "desconocido"
     try:

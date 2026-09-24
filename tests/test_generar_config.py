@@ -8,9 +8,12 @@ Correr con::
     python3 -m unittest discover tests
 """
 
+import io
+import json
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import generar_config as gc  # noqa: E402
@@ -217,3 +220,58 @@ class TarifaUsd(unittest.TestCase):
                          {"input": 3.0, "output": 15.0})
         # El desconocido se queda sin `cost` en vez de con un precio inventado.
         self.assertNotIn("cost", modelos["databricks-gemma-3-12b"])
+
+
+class DetectarForma(unittest.TestCase):
+    """El sondeo que decide si un endpoint entra en la config.
+
+    La primera versión preguntaba "di: ok" sin streaming. Sonnet 4.5 pasaba y después
+    reventaba en la primera tarea real con ``expected string, received array``: el
+    razonamiento llega como lista dentro de ``delta.content``, y solo aparece cuando el
+    modelo de verdad razona y en el camino de streaming.
+    """
+
+    HOST = "https://ejemplo.cloud.databricks.com"
+
+    def _respuesta_sse(self, fragmentos):
+        """Simula una respuesta SSE como la devuelve Databricks."""
+        lineas = [f"data: {json.dumps(f)}\n".encode() for f in fragmentos]
+        lineas.append(b"data: [DONE]\n")
+        respuesta = io.BytesIO(b"".join(lineas))
+        respuesta.status = 200
+        respuesta.__enter__ = lambda s: s
+        respuesta.__exit__ = lambda s, *a: None
+        return respuesta
+
+    def _detectar(self, fragmentos):
+        with mock.patch.object(gc.urllib.request, "urlopen",
+                               return_value=self._respuesta_sse(fragmentos)):
+            return gc.detectar_forma(self.HOST, "t", "un-endpoint")
+
+    def test_detecta_bloques_en_el_stream(self):
+        """El caso que se escapó: el razonamiento llega como lista."""
+        forma = self._detectar([
+            {"choices": [{"delta": {"role": "assistant", "content": [
+                {"type": "reasoning_summary", "summary": [{"type": "summary_text", "text": "..."}]}
+            ]}}]},
+        ])
+        self.assertEqual(forma, "bloques")
+
+    def test_acepta_el_stream_de_texto(self):
+        forma = self._detectar([
+            {"choices": [{"delta": {"role": "assistant", "content": "El primero"}}]},
+            {"choices": [{"delta": {"content": " llega antes."}}]},
+        ])
+        self.assertEqual(forma, "string")
+
+    def test_un_bloque_tardio_tambien_descarta(self):
+        """Empieza bien y razona después: igual hay que descartarlo."""
+        forma = self._detectar([
+            {"choices": [{"delta": {"content": "Veamos"}}]},
+            {"choices": [{"delta": {"content": [{"type": "reasoning_summary"}]}}]},
+        ])
+        self.assertEqual(forma, "bloques")
+
+    def test_la_pregunta_sonda_da_trabajo(self):
+        """Con un saludo trivial el modelo contesta directo y nunca razona."""
+        self.assertGreater(len(gc.PREGUNTA_SONDA), 60)
