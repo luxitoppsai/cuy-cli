@@ -23,6 +23,11 @@ import shutil
 import subprocess
 import sys
 
+# El destino de este proyecto incluye Windows: los mensajes y comandos que se le
+# muestran al usuario tienen que usar la sintaxis de su sistema, no la de macOS.
+ES_WINDOWS = os.name == "nt"
+PY = "python" if ES_WINDOWS else "python3"
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import generar_config as gc
 
@@ -168,7 +173,7 @@ def instalar_plugin() -> None:
         shutil.copy2(RAIZ / "plugin" / nombre, destino_dir / nombre)
     limite = os.environ.get("CUY_LIMITE_TOKENS", "300000")
     print(f"  ✓ Tope de presupuesto activo ({int(limite):,} tokens por sesión)".replace(",", "."))
-    print("  ✓ Registro de auditoría activo (python3 auditar.py para leerlo)")
+    print(f"  ✓ Registro de auditoría activo ({PY} auditar.py para leerlo)")
 
 
 def instalar_opencode(npm: str) -> pathlib.Path:
@@ -247,10 +252,10 @@ def main() -> int:
         print("  Revisá el token y que el workspace esté accesible desde esta red.")
         return 1
 
-    relativo = binario.relative_to(RAIZ)
+    lanzador = "cuy.cmd" if ES_WINDOWS else "./cuy"
     print("\n" + "─" * 60)
     print("Listo. Para empezar:\n")
-    print(f"  ./{relativo}\n")
+    print(f"  {lanzador}\n")
     print(f"  Modelo principal : {config.get('model', '').split('/', 1)[-1]}")
     print(f"  Modelo auxiliar  : {config.get('small_model', '').split('/', 1)[-1]}")
     print("\nSi los modelos elegidos no son los que preferís, editá opencode.json.")

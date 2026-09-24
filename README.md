@@ -26,34 +26,37 @@ construye acá y se valida allá. Nada debe asumir en el código qué modelos ex
 
 ## Poner en marcha
 
+**Windows** (PowerShell o CMD):
+
+```
+git clone https://github.com/luxitoppsai/cuy-cli.git
+cd cuy-cli
+python instalar.py
+cuy.cmd
+```
+
+**macOS y Linux:**
+
 ```bash
 git clone https://github.com/luxitoppsai/cuy-cli.git && cd cuy-cli
 python3 instalar.py
-```
-
-Eso es todo. El instalador verifica que tengas Node, pide el token sin mostrarlo en
-pantalla ni dejarlo en el historial, descubre qué modelos sirve tu workspace, genera la
-configuración, instala OpenCode local al proyecto y **hace una llamada real para
-confirmar que responde** antes de decir que terminó.
-
-Después, **usá siempre el lanzador**:
-
-```bash
 ./cuy
 ```
 
-No es `opencode` a secas: `./cuy` aplica el blindaje de red. Sin él, OpenCode contacta
-`api.opencode.ai` durante una sesión normal aunque tu proveedor sea propio. Verificado
-observando las conexiones reales del proceso — con el lanzador, el único destino es tu
-Databricks. Detalle y forma de reproducirlo: [spike/RED.md](./spike/RED.md).
+El instalador verifica que tengas Node, pide el token sin mostrarlo en pantalla ni
+dejarlo en el historial, descubre qué modelos sirve tu workspace, genera la
+configuración, instala OpenCode local al proyecto y **hace una llamada real para
+confirmar que responde** antes de decir que terminó.
 
-También reparte los roles entre los modelos que encontró (D3 del RFC): el capaz ejecuta
-y edita, el barato planifica y explora. OpenCode liga un modelo a cada agente de forma
-nativa, así que esto es configuración — no hay ninguna modificación al harness.
+**Usá siempre el lanzador** (`cuy.cmd` o `./cuy`), no `opencode` a secas: el lanzador
+aplica el blindaje de red. Sin él, OpenCode contacta `api.opencode.ai` durante una sesión
+normal aunque tu proveedor sea propio — verificado observando las conexiones reales del
+proceso ([spike/RED.md](./spike/RED.md)).
 
-**Al cambiar de workspace** —de tu entorno de pruebas al del trabajo— volvés a correr
-`python3 instalar.py` y se reconfigura solo. En el Databricks del trabajo detecta los
-Claude que tengas y los ordena por nivel (haiku < sonnet < opus) sin que averigües nada.
+**Al cambiar de workspace** —de tu entorno de pruebas al del trabajo— volvés a correr el
+instalador y se reconfigura solo. En el Databricks del trabajo detecta los Claude que
+tengas y los ordena por nivel (haiku < sonnet < opus) sin que averigües nada.
+
 
 ### Opciones
 
@@ -67,9 +70,13 @@ python3 instalar.py --sin-verificar        # omitir la llamada de prueba final
 
 ```bash
 python3 generar_config.py --host https://...   # solo regenerar la configuración
-bash spike/01-conexion.sh                      # probar la API cruda, sin capas
 python3 -m unittest discover tests             # pruebas
+node tests/presupuesto.test.mjs                # pruebas de los plugins
+bash spike/01-conexion.sh                      # probar la API cruda (solo Unix)
 ```
+
+> En Windows usá `python` en vez de `python3`. El único archivo que no corre ahí es
+> `spike/01-conexion.sh`, que es una herramienta de diagnóstico, no parte del producto.
 
 
 ## Límites y permisos
