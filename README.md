@@ -63,10 +63,15 @@ python instalar.py --sin-compilar
 Usa el binario oficial de OpenCode en vez de compilar: arranca en un minuto y no
 necesita bun, pero **vas a ver el logo de OpenCode**. Todo lo demás es idéntico.
 
-**En redes corporativas es lo más probable que falle.** Si tu empresa intercepta TLS,
-bun no reconoce su certificado y no puede bajar dependencias
-(`SELF_SIGNED_CERT_IN_CHAIN`). npm suele estar configurado con ese certificado, por eso
-`--sin-compilar` funciona igual. Para compilar de todas formas:
+**En redes corporativas que interceptan TLS** —lo más común en una empresa— bun no
+reconoce el certificado propio de la red y no puede bajar dependencias
+(`SELF_SIGNED_CERT_IN_CHAIN`).
+
+**En Windows el instalador lo resuelve solo**: exporta los certificados raíz del sistema
+—donde ya está el de tu empresa, por eso funcionan el navegador y npm— y reintenta
+apuntando bun ahí. No hace falta pedirle nada a IT.
+
+Si aun así falla, o estás en macOS/Linux, apuntá bun al certificado a mano:
 
 ```
 # Windows
@@ -75,7 +80,9 @@ $env:NODE_EXTRA_CA_CERTS="C:\ruta\al\certificado.pem"
 export NODE_EXTRA_CA_CERTS=/ruta/al/certificado.pem
 ```
 
-El certificado lo da IT, o se exporta del navegador.
+> **No desactives la verificación** (`NODE_TLS_REJECT_UNAUTHORIZED=0`). Dejaría pasar a
+> cualquier intermediario, no solo al de tu empresa, justo mientras se descarga código
+> que después se compila y ejecuta en tu máquina.
 
 Otras fallas conocidas al compilar:
 

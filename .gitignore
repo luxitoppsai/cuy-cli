@@ -21,3 +21,4 @@ opencode.json
 vendor/opencode/node_modules/
 vendor/opencode/packages/*/dist/
 vendor/opencode/packages/*/node_modules/
+certificados-sistema.pem

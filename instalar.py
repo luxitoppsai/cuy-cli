@@ -192,6 +192,39 @@ def buscar_bun() -> str | None:
     return next((str(c) for c in candidatos if c.exists()), None)
 
 
+def exportar_certificados_del_sistema() -> pathlib.Path | None:
+    """Vuelca los certificados raíz de Windows a un archivo PEM.
+
+    En una red que intercepta TLS, el certificado de la empresa ya está en el almacén
+    de Windows —por eso funcionan el navegador y npm—, pero bun no lo lee. Exportarlo
+    y apuntarlo con ``NODE_EXTRA_CA_CERTS`` resuelve el problema **sin desactivar la
+    verificación**, que sería peor: dejaría pasar cualquier intermediario, no solo el
+    de la empresa, justo mientras se descarga código que después se compila y ejecuta.
+
+    :returns: Ruta del PEM generado, o ``None`` si el sistema no expone el almacén.
+    """
+    import ssl
+
+    if not hasattr(ssl, "enum_certificates"):
+        return None  # solo existe en Windows
+
+    pem = []
+    for almacen in ("ROOT", "CA"):
+        try:
+            for der, codificacion, _ in ssl.enum_certificates(almacen):
+                if codificacion == "x509_asn":
+                    pem.append(ssl.DER_cert_to_PEM_cert(der))
+        except Exception:
+            continue
+
+    if not pem:
+        return None
+    destino = RAIZ / "certificados-sistema.pem"
+    destino.write_text("".join(pem), encoding="utf-8")
+    print(f"  ✓ {len(pem)} certificados del sistema exportados")
+    return destino
+
+
 def compilar_desde_fuente() -> pathlib.Path:
     """Clona el fork propio y compila el binario con la marca de cuy-cli.
 
@@ -243,6 +276,17 @@ def compilar_desde_fuente() -> pathlib.Path:
         print("    Se continúa: suelen ser gramáticas de resaltado que el agente no usa.")
 
     salida = (dep.stderr or "") + (dep.stdout or "")
+    if ("SELF_SIGNED_CERT_IN_CHAIN" in salida or "UNABLE_TO_GET_ISSUER_CERT" in salida) \
+            and not os.environ.get("NODE_EXTRA_CA_CERTS"):
+        print("  La red intercepta TLS; usando los certificados del sistema...")
+        certificados = exportar_certificados_del_sistema()
+        if certificados:
+            entorno = {**os.environ, "NODE_EXTRA_CA_CERTS": str(certificados)}
+            dep = subprocess.run([bun, "install"], cwd=FUENTE, capture_output=True,
+                                 text=True, env=entorno)
+            salida = (dep.stderr or "") + (dep.stdout or "")
+            os.environ["NODE_EXTRA_CA_CERTS"] = str(certificados)
+
     if "SELF_SIGNED_CERT_IN_CHAIN" in salida or "UNABLE_TO_GET_ISSUER_CERT" in salida:
         # Red corporativa que intercepta TLS: bun no reconoce el certificado propio de
         # la empresa. npm suele estar configurado con él, por eso --sin-compilar anda.
@@ -267,7 +311,7 @@ def compilar_desde_fuente() -> pathlib.Path:
     paquete = FUENTE / "packages" / "opencode"
     build = subprocess.run(
         [bun, "run", "script/build.ts", "--single", "--skip-embed-web-ui"],
-        cwd=paquete, capture_output=True, text=True,
+        cwd=paquete, capture_output=True, text=True, env={**os.environ},
     )
     binarios = sorted((paquete / "dist").glob("*/bin/opencode*")) if (paquete / "dist").exists() else []
     if build.returncode != 0 or not binarios:
