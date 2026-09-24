@@ -63,7 +63,21 @@ python instalar.py --sin-compilar
 Usa el binario oficial de OpenCode en vez de compilar: arranca en un minuto y no
 necesita bun, pero **vas a ver el logo de OpenCode**. Todo lo demás es idéntico.
 
-Dos fallas conocidas al compilar:
+**En redes corporativas es lo más probable que falle.** Si tu empresa intercepta TLS,
+bun no reconoce su certificado y no puede bajar dependencias
+(`SELF_SIGNED_CERT_IN_CHAIN`). npm suele estar configurado con ese certificado, por eso
+`--sin-compilar` funciona igual. Para compilar de todas formas:
+
+```
+# Windows
+$env:NODE_EXTRA_CA_CERTS="C:\ruta\al\certificado.pem"
+# macOS/Linux
+export NODE_EXTRA_CA_CERTS=/ruta/al/certificado.pem
+```
+
+El certificado lo da IT, o se exporta del navegador.
+
+Otras fallas conocidas al compilar:
 
 - **Falta bun** — `powershell -c "irm bun.sh/install.ps1 | iex"` en Windows. El
   instalador lo busca también en `~/.bun/bin`, así que **no hace falta reiniciar la

@@ -242,8 +242,26 @@ def compilar_desde_fuente() -> pathlib.Path:
             print(f"    {linea[:110]}")
         print("    Se continúa: suelen ser gramáticas de resaltado que el agente no usa.")
 
+    salida = (dep.stderr or "") + (dep.stdout or "")
+    if "SELF_SIGNED_CERT_IN_CHAIN" in salida or "UNABLE_TO_GET_ISSUER_CERT" in salida:
+        # Red corporativa que intercepta TLS: bun no reconoce el certificado propio de
+        # la empresa. npm suele estar configurado con él, por eso --sin-compilar anda.
+        _error(
+            "Tu red intercepta TLS y bun no reconoce el certificado de la empresa\n"
+            "    (SELF_SIGNED_CERT_IN_CHAIN al bajar dependencias).\n"
+            "\n"
+            "    Salida más simple, funciona ya:\n"
+            f"      {PY} instalar.py --sin-compilar\n"
+            "      (usa npm, que sí tiene el certificado; perdés el logo propio)\n"
+            "\n"
+            "    Para compilar igual, apuntá bun al certificado de tu empresa:\n"
+            "      Windows:  $env:NODE_EXTRA_CA_CERTS=\"C:\\ruta\\al\\certificado.pem\"\n"
+            "      macOS:    export NODE_EXTRA_CA_CERTS=/ruta/al/certificado.pem\n"
+            "      El certificado lo da el equipo de IT, o se exporta del navegador."
+        )
+
     if not (FUENTE / "node_modules").exists():
-        _error(f"No se instalaron las dependencias:\n{(dep.stderr or '')[-400:]}")
+        _error(f"No se instalaron las dependencias:\n{salida[-400:]}")
 
     print("  Compilando...")
     paquete = FUENTE / "packages" / "opencode"
