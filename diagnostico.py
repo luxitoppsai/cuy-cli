@@ -50,8 +50,11 @@ def main() -> int:
     print("Lo que imprime el binario:")
     try:
         entorno = {**os.environ, **cuy.BLINDAJE}
+        # Sin encoding explícito, Windows decodifica con cp1252 y los bloques del
+        # logo salen como basura aunque el binario esté bien.
         salida = subprocess.run([str(elegido), "--help"], capture_output=True, text=True,
-                                timeout=60, shell=cuy.ES_WINDOWS, env=entorno)
+                                timeout=60, shell=cuy.ES_WINDOWS, env=entorno,
+                                encoding="utf-8", errors="replace")
         for linea in (salida.stdout or salida.stderr or "").splitlines()[:5]:
             print(f"  {linea}")
     except Exception as e:
