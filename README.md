@@ -207,6 +207,45 @@ Un modelo sin tarifa conocida se queda **sin `cost`** en vez de con un precio in
 suma cero y no aparece en la barra.
 
 
+## Secretos
+
+Los permisos controlan **qué herramientas** corre el agente. Esto controla **qué
+contenido sale** ([RFC-002](docs/rfc/RFC-002-redaccion-de-secretos.md)). Sin él, un
+`cat .env` manda credenciales al endpoint de inferencia, donde quedan en logs con otra
+audiencia y otra retención que el repo de donde salieron.
+
+Dos mecanismos, porque fallan distinto:
+
+| | Cubre | Falla cuando |
+|---|---|---|
+| **Rechaza rutas** (`.env`, `*.pem`, `~/.aws/credentials`, `.databrickscfg`…) | El archivo entero, sin leerlo | El secreto está en un archivo normal |
+| **Redacta patrones** (`dapi…`, `AKIA…`, `ghp_…`, claves privadas) | Cualquier origen, incluido `bash` | El secreto no tiene forma reconocible |
+
+Lo redactado conserva la forma, para que el modelo siga entendiendo el archivo:
+
+```python
+HOST  = "https://x.com"
+TOKEN = "[REDACTADO:databricks-pat]"
+DEBUG = True
+```
+
+Un efecto del diseño que conviene conocer: si el agente intenta reescribir una línea
+redactada, su `oldString` no coincide con el archivo real y la edición falla. La
+redacción **no puede pisar un secreto con `[REDACTADO]` en disco**.
+
+Las plantillas se leen normal (`.env.example`, `config.template.json`): existen para
+versionarse y no tienen valores.
+
+Cada redacción queda en la auditoría con el tipo y la cantidad, **nunca el valor**.
+
+> **Es una barrera, no un control.** El plugin corre en tu máquina y se puede editar.
+> Sirve contra el accidente —que es como ocurren casi todas las filtraciones— no contra
+> alguien decidido. Tampoco impide que una persona pegue un token en el prompt. El
+> control duro vive en el Gateway de Databricks.
+>
+> **No tiene variable para apagarlo**, a diferencia del tope de gasto: una barrera con
+> interruptor se apaga el día que molesta, que es el día que hace falta.
+
 ## Auditoría
 
 Cada sesión deja registro de qué tocó el agente y quién lo pidió, en

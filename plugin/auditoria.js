@@ -36,8 +36,11 @@ export const Auditoria = async ({ directory }) => {
   anotar({ cuando: new Date().toISOString(), sesion, ...quien, evento: "sesion.inicio", directory });
 
   return {
-    "tool.execute.before": async (input) => {
-      const herramienta = input?.tool ?? input?.name ?? "desconocida";
+    // Los argumentos viajan en el **segundo** parámetro, no en el primero: OpenCode
+    // llama `(input: {tool, sessionID, callID}, output: {args})`. Leerlos de `input`
+    // —como hacía la primera versión— registraba la herramienta sin ningún detalle.
+    "tool.execute.before": async (input, output) => {
+      const herramienta = input?.tool ?? "desconocida";
       if (!RELEVANTES.has(herramienta)) return;
       acciones++;
       anotar({
@@ -46,7 +49,7 @@ export const Auditoria = async ({ directory }) => {
         ...quien,
         evento: "herramienta",
         herramienta,
-        ...resumirLlamada(herramienta, input?.args ?? input?.input),
+        ...resumirLlamada(herramienta, output?.args),
       });
     },
 

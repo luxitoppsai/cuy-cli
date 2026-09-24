@@ -1,14 +1,14 @@
 ---
 rfc: RFC-002
 titulo: Redacción de secretos antes de que salgan hacia el modelo
-estado: borrador
+estado: aceptado
 fecha: 2026-09-24
 proyecto: cuy-cli
 ---
 
 # RFC-002 — Redacción de secretos antes de que salgan hacia el modelo
 
-> **Estado: borrador.** No se programa hasta que esté `aceptado`.
+> **Estado: aceptado** el 2026-09-24, sin cambios de alcance respecto del borrador.
 
 ## 1. Problema
 

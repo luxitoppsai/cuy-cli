@@ -57,10 +57,12 @@ prueba("todo hook declarado por los plugins existe en OpenCode", async () => {
 
   const { Presupuesto } = await import("../plugin/presupuesto.js");
   const { Auditoria } = await import("../plugin/auditoria.js");
+  const { Secretos } = await import("../plugin/secretos.js");
 
   const plugins = {
     Presupuesto: await Presupuesto({ client: {} }),
     Auditoria: await Auditoria({ directory: RAIZ }),
+    Secretos: await Secretos({}),
   };
 
   for (const [nombre, hooks] of Object.entries(plugins)) {
@@ -77,7 +79,8 @@ prueba("todo hook declarado por los plugins existe en OpenCode", async () => {
 prueba("los plugins exportan una sola cosa", async () => {
   // OpenCode invoca **cada export** como fábrica de plugins: un helper exportado de más
   // rompe la carga y deja la configuración nula.
-  for (const archivo of ["../plugin/presupuesto.js", "../plugin/auditoria.js"]) {
+  for (const archivo of ["../plugin/presupuesto.js", "../plugin/auditoria.js",
+                         "../plugin/secretos.js"]) {
     const modulo = await import(archivo);
     const exports = Object.keys(modulo);
     assert.equal(exports.length, 1, `${archivo} exporta ${exports.join(", ")}`);
