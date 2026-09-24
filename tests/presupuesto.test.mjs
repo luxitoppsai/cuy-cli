@@ -5,7 +5,7 @@
  * usándolo. Correr con:  node tests/presupuesto.test.mjs
  */
 import assert from "node:assert";
-import { contarTokens, buscarUso, evaluar } from "../plugin/presupuesto.js";
+import { contarTokens, buscarUso, evaluar } from "../plugin/lib/presupuesto-core.js";
 
 const pruebas = [];
 const prueba = (nombre, fn) => pruebas.push([nombre, fn]);

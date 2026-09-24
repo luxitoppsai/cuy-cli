@@ -3,7 +3,7 @@
  * Correr con:  node tests/auditoria.test.mjs
  */
 import assert from "node:assert";
-import { identidad, resumirLlamada, aplicarRetencion } from "../plugin/auditoria.js";
+import { identidad, resumirLlamada, aplicarRetencion } from "../plugin/lib/auditoria-core.js";
 
 const pruebas = [];
 const prueba = (nombre, fn) => pruebas.push([nombre, fn]);

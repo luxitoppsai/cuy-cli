@@ -168,9 +168,11 @@ def instalar_plugin() -> None:
     :returns: Nada.
     """
     destino_dir = RAIZ / ".opencode" / "plugin"
-    destino_dir.mkdir(parents=True, exist_ok=True)
-    for nombre in ("presupuesto.js", "auditoria.js"):
-        shutil.copy2(RAIZ / "plugin" / nombre, destino_dir / nombre)
+    if destino_dir.exists():
+        shutil.rmtree(destino_dir)
+    # Se copia el árbol entero: los plugins importan su lógica desde `lib/`, que debe
+    # viajar con ellos o la carga falla y deja la configuración nula.
+    shutil.copytree(RAIZ / "plugin", destino_dir)
     limite = os.environ.get("CUY_LIMITE_TOKENS", "300000")
     print(f"  ✓ Tope de presupuesto activo ({int(limite):,} tokens por sesión)".replace(",", "."))
     print(f"  ✓ Registro de auditoría activo ({PY} auditar.py para leerlo)")
