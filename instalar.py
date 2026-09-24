@@ -157,7 +157,7 @@ def generar(host: str, token: str, rapido: bool) -> dict:
             print(f"    ✓ {nombre} (salida ≤ {limite})")
 
     config = gc.construir_config(host, endpoints, detalles)
-    if not config["provider"][PROVEEDOR]["models"]:
+    if not config["provider"][gc.PROVEEDOR]["models"]:
         _error("Ningún endpoint es usable: todos devuelven bloques en vez de texto.")
     CONFIG.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
     print(f"  ✓ {CONFIG.name} generado")
