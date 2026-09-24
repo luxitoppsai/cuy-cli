@@ -98,13 +98,14 @@ class ConstruirConfig(unittest.TestCase):
 class RuteoPorRol(unittest.TestCase):
     """D3 del RFC: cada rol usa el modelo que le corresponde, sin tocar el harness."""
 
-    def test_planificar_usa_el_barato_y_ejecutar_el_capaz(self):
+    def test_ejecutar_usa_sonnet_y_planificar_haiku(self):
+        """Opus queda fuera de los roles: se elige a mano cuando la tarea lo pide."""
         agentes = gc.construir_agentes([
             "databricks-claude-haiku-4-5",
             "databricks-claude-sonnet-4-5",
             "databricks-claude-opus-4-1",
         ])
-        self.assertEqual(agentes["build"]["model"], f"{gc.PROVEEDOR}/databricks-claude-opus-4-1")
+        self.assertEqual(agentes["build"]["model"], f"{gc.PROVEEDOR}/databricks-claude-sonnet-4-5")
         self.assertEqual(agentes["plan"]["model"], f"{gc.PROVEEDOR}/databricks-claude-haiku-4-5")
 
     def test_los_subagentes_de_lectura_usan_el_barato(self):
@@ -118,3 +119,51 @@ class RuteoPorRol(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PreferenciasDeModelo(unittest.TestCase):
+    """Sonnet de principal y Haiku de auxiliar; Opus queda para elegirlo a mano."""
+
+    CLAUDE = [
+        "databricks-claude-opus-4-1",
+        "databricks-claude-opus-4-5",
+        "databricks-claude-sonnet-4",
+        "databricks-claude-haiku-4-5",
+    ]
+
+    def _config(self, nombres, limite=64000):
+        detalles = {n: {"forma": "string", "limite": limite} for n in nombres}
+        return gc.construir_config("https://x", [{"name": n} for n in nombres], detalles)
+
+    def test_sonnet_es_el_principal_aunque_opus_sea_mas_capaz(self):
+        c = self._config(self.CLAUDE)
+        self.assertIn("sonnet", c["model"])
+        self.assertNotIn("opus", c["model"])
+
+    def test_haiku_es_el_auxiliar(self):
+        c = self._config(self.CLAUDE)
+        self.assertIn("haiku", c["small_model"])
+
+    def test_opus_queda_disponible_para_elegirlo(self):
+        """No se usa por defecto, pero tiene que estar en la lista."""
+        c = self._config(self.CLAUDE)
+        modelos = c["provider"][gc.PROVEEDOR]["models"]
+        self.assertIn("databricks-claude-opus-4-1", modelos)
+
+    def test_ningun_rol_usa_opus_por_defecto(self):
+        c = self._config(self.CLAUDE)
+        for rol, cfg in c.get("agent", {}).items():
+            self.assertNotIn("opus", cfg["model"], f"el rol {rol} no debería usar Opus")
+
+    def test_sin_claude_se_elige_por_tamano(self):
+        """En un workspace de pesos abiertos las preferencias no aplican."""
+        c = self._config([
+            "databricks-qwen3-next-80b-a3b-instruct",
+            "databricks-meta-llama-3-1-8b-instruct",
+        ], limite=8000)
+        self.assertIn("80b", c["model"])
+        self.assertIn("8b", c["small_model"])
+
+    def test_elige_la_version_mas_nueva_de_la_familia(self):
+        c = self._config(["databricks-claude-sonnet-4", "databricks-claude-sonnet-4-5"])
+        self.assertEqual(c["model"], f"{gc.PROVEEDOR}/databricks-claude-sonnet-4-5")

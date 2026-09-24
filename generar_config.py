@@ -225,6 +225,35 @@ def construir_permisos() -> dict:
 PROVEEDOR = "cuy"
 
 
+# Preferencias de modelo por rol, en orden. Se buscan por subcadena en el nombre del
+# endpoint; lo que no coincide cae al criterio de tamaño.
+#
+# Sonnet va de principal y no Opus, aunque Opus sea más capaz: es el equilibrio que
+# rinde para el trabajo diario. Opus queda disponible para elegirlo a mano cuando la
+# tarea lo justifique, que es distinto de que se use en todo sin pensarlo.
+PREFERIDOS_PRINCIPAL = ["sonnet", "opus"]
+PREFERIDOS_AUXILIAR = ["haiku"]
+
+
+def elegir(candidatos: list[str], preferidos: list[str], respaldo) -> str | None:
+    """Elige un modelo por preferencia declarada, con respaldo por tamaño.
+
+    :param candidatos: Endpoints usables.
+    :param preferidos: Subcadenas a buscar, en orden de preferencia.
+    :param respaldo: Función que elige cuando ninguna preferencia coincide.
+    :returns: El endpoint elegido, o ``None`` si no hay candidatos.
+    """
+    if not candidatos:
+        return None
+    for preferido in preferidos:
+        coincidencias = [c for c in candidatos if preferido in c.lower()]
+        if coincidencias:
+            # Entre varias versiones de la misma familia, la de nombre mayor suele ser
+            # la más nueva (sonnet-4-5 sobre sonnet-4).
+            return sorted(coincidencias)[-1]
+    return respaldo(candidatos)
+
+
 def construir_agentes(por_tamano: list[str]) -> dict:
     """Asigna un modelo a cada agente según su rol (D3 del RFC).
 
@@ -238,7 +267,10 @@ def construir_agentes(por_tamano: list[str]) -> dict:
     """
     if len(por_tamano) < 2:
         return {}
-    capaz, barato = por_tamano[-1], por_tamano[0]
+    capaz = elegir(por_tamano, PREFERIDOS_PRINCIPAL, lambda c: c[-1])
+    barato = elegir(por_tamano, PREFERIDOS_AUXILIAR, lambda c: c[0])
+    if capaz == barato:
+        barato = por_tamano[0]
     return {
         # Ejecuta y edita: es donde más pesa la capacidad del modelo.
         "build": {"model": f"{PROVEEDOR}/{capaz}"},
@@ -277,8 +309,10 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict) -> dict:
     # Se ordena por tamaño estimado, no por tope de tokens: el tope no se correlaciona
     # con la capacidad (dos modelos muy distintos pueden compartir el mismo 8192).
     por_tamano = sorted(usables, key=_tamano_estimado)
-    principal = por_tamano[-1] if por_tamano else None
-    auxiliar = por_tamano[0] if por_tamano else None
+    principal = elegir(por_tamano, PREFERIDOS_PRINCIPAL, lambda c: c[-1])
+    auxiliar = elegir(por_tamano, PREFERIDOS_AUXILIAR, lambda c: c[0])
+    if principal == auxiliar and len(por_tamano) > 1:
+        auxiliar = por_tamano[0]
 
     config = {
         "$schema": "https://opencode.ai/config.json",
