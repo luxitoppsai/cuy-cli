@@ -38,6 +38,8 @@ def _fingir(formas):
         listar_endpoints=mock.Mock(return_value=ENDPOINTS),
         detectar_forma=mock.Mock(side_effect=lambda h, t, n: formas[n]),
         sondear_limite=mock.Mock(return_value=8192),
+        # Sin fingirlo, el test sale a la red de verdad contra un host inventado.
+        detectar_anthropic=mock.Mock(return_value=None),
     )
 
 

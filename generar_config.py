@@ -114,6 +114,97 @@ def sondear_limite(host: str, token: str, nombre: str) -> int:
     return SALIDA_POR_DEFECTO
 
 
+# --- Vía nativa de Anthropic -------------------------------------------------------
+#
+# Databricks expone, además del contrato OpenAI, un passthrough de la API Messages de
+# Anthropic. Para Claude es **la vía buena**, por dos razones:
+#
+#   1. Elimina una incompatibilidad de raíz. Por la vía OpenAI-compatible, Sonnet 4.5
+#      manda el razonamiento como lista de bloques en `delta.content`, donde la
+#      especificación exige un string: el cliente corta con `expected string, received
+#      array` y no hay nada del lado del cliente que lo evite.
+#   2. Es la superficie para la que Claude fue entrenado, que es la tesis del RFC.
+
+RUTA_ANTHROPIC = "/serving-endpoints/anthropic/v1"
+VERSION_ANTHROPIC = "2023-06-01"
+
+# Databricks autentica con Bearer; el SDK de Anthropic manda `x-api-key`. Cuál acepta el
+# workspace se descubre probando, que sale más barato que acertarlo.
+AUTENTICACIONES = [
+    ("bearer", lambda t: {"Authorization": f"Bearer {t}"}),
+    ("x-api-key", lambda t: {"x-api-key": t}),
+]
+
+
+def _pedir_anthropic(host: str, cabeceras: dict, cuerpo: dict, timeout: int = 60):
+    """POST contra el passthrough de Anthropic. Devuelve ``(código, cuerpo)``."""
+    req = urllib.request.Request(
+        host + RUTA_ANTHROPIC + "/messages", data=json.dumps(cuerpo).encode(), method="POST",
+        headers={**cabeceras, "anthropic-version": VERSION_ANTHROPIC,
+                 "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode(errors="replace"))
+        except json.JSONDecodeError:
+            return e.code, {}
+    except Exception:
+        return 0, {}
+
+
+def nombres_anthropic(endpoint: str) -> list[str]:
+    """Nombres con los que intentar un endpoint en el passthrough, del más probable.
+
+    El passthrough nombra los modelos como los nombra Anthropic, no como el endpoint:
+    ``databricks-claude-sonnet-4-5`` suele responder a ``claude-sonnet-4-5``. Se prueban
+    ambos porque no está documentado cuál acepta cada workspace.
+    """
+    candidatos = [endpoint.removeprefix("databricks-"), endpoint]
+    return list(dict.fromkeys(candidatos))
+
+
+def detectar_anthropic(host: str, token: str, endpoints: list[str]) -> dict | None:
+    """Averigua si el passthrough de Anthropic sirve, y con qué nombres y autenticación.
+
+    No asume nada: prueba las dos formas de autenticación y, para cada endpoint Claude,
+    los dos nombres posibles. Lo que no conteste queda afuera.
+
+    :param host: URL del workspace.
+    :param token: Token de Databricks.
+    :param endpoints: Endpoints Claude a intentar.
+    :returns: ``{"auth": str, "cabeceras": dict, "modelos": {endpoint: nombre}}`` o
+        ``None`` si el passthrough no responde.
+    """
+    if not endpoints:
+        return None
+
+    sonda = {"max_tokens": 16, "messages": [{"role": "user", "content": "di: ok"}]}
+    for nombre_auth, construir in AUTENTICACIONES:
+        cabeceras = construir(token)
+        for candidato in nombres_anthropic(endpoints[0]):
+            codigo, _ = _pedir_anthropic(host, cabeceras, {**sonda, "model": candidato})
+            if codigo != 200:
+                continue
+            # Funciona: se resuelve el nombre de cada endpoint con esta autenticación.
+            modelos = {}
+            for endpoint in endpoints:
+                for posible in nombres_anthropic(endpoint):
+                    codigo, _ = _pedir_anthropic(host, cabeceras, {**sonda, "model": posible})
+                    if codigo == 200:
+                        modelos[endpoint] = posible
+                        break
+            if modelos:
+                return {"auth": nombre_auth, "cabeceras": cabeceras, "modelos": modelos}
+    return None
+
+
+def es_claude(endpoint: str) -> bool:
+    return "claude" in endpoint.lower()
+
+
 # Pregunta que empuja al modelo a razonar antes de contestar. Con un saludo trivial
 # muchos endpoints responden directo y nunca emiten el bloque de razonamiento que es
 # justamente lo que se está buscando.
@@ -281,6 +372,11 @@ def construir_permisos() -> dict:
 # modelos del catálogo que este workspace no sirve.
 PROVEEDOR = "cuy"
 
+# Claude por su API nativa va en un proveedor aparte porque la URL base es otra
+# (`/serving-endpoints/anthropic/v1` en vez de `/serving-endpoints`), y la URL base se
+# fija al construir el SDK: no se puede cambiar modelo por modelo.
+PROVEEDOR_CLAUDE = "cuy-claude"
+
 
 # Preferencias de modelo por rol, en orden. Se buscan por subcadena en el nombre del
 # endpoint; lo que no coincide cae al criterio de tamaño.
@@ -356,7 +452,7 @@ def elegir(candidatos: list[str], preferidos: list[str], respaldo) -> str | None
     return respaldo(candidatos)
 
 
-def construir_agentes(por_tamano: list[str]) -> dict:
+def construir_agentes(por_tamano: list[str], ref) -> dict:
     """Asigna un modelo a cada agente según su rol (D3 del RFC).
 
     OpenCode liga un modelo a cada agente de forma nativa, así que el ruteo por rol es
@@ -365,6 +461,7 @@ def construir_agentes(por_tamano: list[str]) -> dict:
     —leer, editar, correr comandos— es donde conviene el modelo capaz.
 
     :param por_tamano: Endpoints usables, de menor a mayor capacidad estimada.
+    :param ref: Función que traduce un endpoint a ``proveedor/modelo``.
     :returns: Bloque ``agent`` para la config, o ``{}`` si no hay con qué decidir.
     """
     if len(por_tamano) < 2:
@@ -375,42 +472,91 @@ def construir_agentes(por_tamano: list[str]) -> dict:
         barato = por_tamano[0]
     return {
         # Ejecuta y edita: es donde más pesa la capacidad del modelo.
-        "build": {"model": f"{PROVEEDOR}/{capaz}"},
+        "build": {"model": ref(capaz)},
         # Planifica sin permiso de editar ni ejecutar (lo trae OpenCode por defecto).
-        "plan": {"model": f"{PROVEEDOR}/{barato}"},
+        "plan": {"model": ref(barato)},
         # Subagentes de solo lectura: explorar y buscar no justifican el modelo caro.
-        "explore": {"model": f"{PROVEEDOR}/{barato}"},
-        "scout": {"model": f"{PROVEEDOR}/{barato}"},
+        "explore": {"model": ref(barato)},
+        "scout": {"model": ref(barato)},
     }
 
 
-def construir_config(host: str, endpoints: list[dict], detalles: dict) -> dict:
+def _describir_modelo(endpoint: str, limite: int) -> dict:
+    """Arma la entrada de un modelo: nombre legible, topes y tarifa."""
+    modelo = {
+        "name": _nombre_legible(endpoint),
+        "limit": {"context": 128000, "output": limite},
+    }
+    # Sin `cost`, OpenCode calcula cero y la TUI no muestra el gasto: el indicador
+    # de la barra se omite cuando el costo es 0, no aparece en cero.
+    tarifa = tarifa_usd(endpoint)
+    if tarifa:
+        modelo["cost"] = tarifa
+    return modelo
+
+
+def construir_config(host: str, endpoints: list[dict], detalles: dict,
+                     anthropic: dict | None = None) -> dict:
     """Arma el `opencode.json` a partir de lo descubierto.
 
+    **Claude va por su API nativa cuando el workspace la expone.** Databricks ofrece un
+    passthrough de la API Messages de Anthropic, y para Claude es la vía buena: evita que
+    el razonamiento llegue como lista de bloques donde el contrato OpenAI exige un string
+    —que es el error `expected string, received array`— y es la superficie para la que el
+    modelo fue entrenado. El resto de los modelos sigue por el contrato OpenAI.
+
     Solo entran los endpoints que devuelven `content` como string: los que devuelven
-    bloques cuelgan al cliente OpenAI-compatible sin dar error.
+    bloques cuelgan al cliente OpenAI-compatible sin dar error. Los que van por la vía
+    nativa no pasan por ese filtro, porque ahí los bloques son parte del contrato.
 
     :param host: URL del workspace.
     :param endpoints: Endpoints de chat listos.
     :param detalles: ``{nombre: {"limite": int, "forma": str}}``.
+    :param anthropic: Lo que devolvió :func:`detectar_anthropic`, o ``None``.
     :returns: Config lista para escribir.
     """
+    por_anthropic = (anthropic or {}).get("modelos", {})
     usables = {
         e["name"]: detalles[e["name"]]
         for e in endpoints
-        if detalles.get(e["name"], {}).get("forma") != "bloques"
+        if e["name"] in por_anthropic or detalles.get(e["name"], {}).get("forma") != "bloques"
     }
-    modelos = {}
-    for nombre, info in usables.items():
-        modelos[nombre] = {
-            "name": _nombre_legible(nombre),
-            "limit": {"context": 128000, "output": info["limite"]},
+
+    nativos = {n: i for n, i in usables.items() if n in por_anthropic}
+    compatibles = {n: i for n, i in usables.items() if n not in por_anthropic}
+
+    def ref(endpoint: str) -> str:
+        """Traduce un endpoint a ``proveedor/modelo``, según por dónde vaya."""
+        if endpoint in por_anthropic:
+            return f"{PROVEEDOR_CLAUDE}/{por_anthropic[endpoint]}"
+        return f"{PROVEEDOR}/{endpoint}"
+
+    proveedores = {}
+    if compatibles:
+        proveedores[PROVEEDOR] = {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "Databricks",
+            "options": {
+                "baseURL": f"{host}/serving-endpoints",
+                "apiKey": "{env:DATABRICKS_TOKEN}",
+            },
+            "models": {n: _describir_modelo(n, i["limite"]) for n, i in compatibles.items()},
         }
-        # Sin `cost`, OpenCode calcula cero y la TUI no muestra el gasto: el indicador
-        # de la barra se omite cuando el costo es 0, no aparece en cero.
-        tarifa = tarifa_usd(nombre)
-        if tarifa:
-            modelos[nombre]["cost"] = tarifa
+    if nativos:
+        # El SDK de Anthropic manda `x-api-key`; si el workspace autentica con Bearer se
+        # inyecta la cabecera a mano. `{env:...}` se sustituye sobre el texto de la
+        # config, así que sirve en cualquier campo.
+        opciones = {"baseURL": f"{host}{RUTA_ANTHROPIC}", "apiKey": "{env:DATABRICKS_TOKEN}"}
+        if anthropic.get("auth") == "bearer":
+            opciones["headers"] = {"Authorization": "Bearer {env:DATABRICKS_TOKEN}"}
+        proveedores[PROVEEDOR_CLAUDE] = {
+            "npm": "@ai-sdk/anthropic",
+            "name": "Databricks (Claude nativo)",
+            "options": opciones,
+            "models": {
+                por_anthropic[n]: _describir_modelo(n, i["limite"]) for n, i in nativos.items()
+            },
+        }
 
     # Se ordena por tamaño estimado, no por tope de tokens: el tope no se correlaciona
     # con la capacidad (dos modelos muy distintos pueden compartir el mismo 8192).
@@ -425,32 +571,22 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict) -> dict:
         # El nombre que aparece en las conversaciones. El logo y el nombre del programa
         # están compilados en el binario y no se pueden cambiar sin recompilar.
         "username": "cuy-cli",
-        # Solo el proveedor propio: sin esto, `/models` lista también los proveedores
-        # que el agente carga por su cuenta (OpenCode Zen y demás), que no se pueden
-        # usar acá y solo ensucian la elección.
-        "enabled_providers": [PROVEEDOR],
+        # Solo los proveedores propios: sin esto, `/models` lista también los que el
+        # agente carga por su cuenta (OpenCode Zen y demás), que no se pueden usar acá
+        # y solo ensucian la elección.
+        "enabled_providers": list(proveedores),
         "permission": construir_permisos(),
-        "provider": {
-            PROVEEDOR: {
-                "npm": "@ai-sdk/openai-compatible",
-                "name": "Databricks",
-                "options": {
-                    "baseURL": f"{host}/serving-endpoints",
-                    "apiKey": "{env:DATABRICKS_TOKEN}",
-                },
-                "models": modelos,
-            }
-        },
+        "provider": proveedores,
     }
     if principal:
-        config["model"] = f"{PROVEEDOR}/{principal}"
-    agentes = construir_agentes(por_tamano)
+        config["model"] = ref(principal)
+    agentes = construir_agentes(por_tamano, ref)
     if agentes:
         config["agent"] = agentes
     # Sin esto OpenCode elige un modelo del catálogo que no existe en el workspace
     # y devuelve 404 en cada sesión, visible solo en su log.
     if auxiliar:
-        config["small_model"] = f"{PROVEEDOR}/{auxiliar}"
+        config["small_model"] = ref(auxiliar)
     return config
 
 
@@ -479,17 +615,31 @@ def main() -> int:
     endpoints = listar_endpoints(host, token)
     print(f"{len(endpoints)} endpoints de chat listos.\n")
 
+    claude = [e["name"] for e in endpoints if es_claude(e["name"])]
+    anthropic = detectar_anthropic(host, token, claude)
+    if anthropic:
+        print(f"API nativa de Anthropic: sí ({anthropic['auth']}) — "
+              f"{len(anthropic['modelos'])} modelo(s) Claude van por ahí.\n")
+    elif claude:
+        print("API nativa de Anthropic: no responde; Claude va por el contrato OpenAI.\n")
+
     detalles = {}
     for e in endpoints:
         nombre = e["name"]
-        forma = detectar_forma(host, token, nombre)
         limite = SALIDA_POR_DEFECTO if args.rapido else sondear_limite(host, token, nombre)
+        if anthropic and nombre in anthropic["modelos"]:
+            # Por la vía nativa los bloques son parte del contrato: no hay que sondear
+            # la forma, y sondearla descartaría el modelo por algo que no es un problema.
+            detalles[nombre] = {"forma": "nativa", "limite": limite}
+            print(f"  {nombre:45s} {'nativa':12s} salida<={limite}")
+            continue
+        forma = detectar_forma(host, token, nombre)
         detalles[nombre] = {"forma": forma, "limite": limite}
         marca = "descartado (devuelve bloques)" if forma == "bloques" else f"salida<={limite}"
         print(f"  {nombre:45s} {forma:12s} {marca}")
 
-    config = construir_config(host, endpoints, detalles)
-    usables = len(config["provider"][PROVEEDOR]["models"])
+    config = construir_config(host, endpoints, detalles, anthropic)
+    usables = sum(len(p["models"]) for p in config["provider"].values())
     if not usables:
         sys.exit("\nNingún endpoint es usable: todos devuelven bloques en vez de string.")
 

@@ -98,6 +98,11 @@ class ConstruirConfig(unittest.TestCase):
 
 
 
+def _ref(endpoint):
+    """Traduce endpoint a `proveedor/modelo` como lo hace construir_config."""
+    return f"{gc.PROVEEDOR}/{endpoint}"
+
+
 class RuteoPorRol(unittest.TestCase):
     """D3 del RFC: cada rol usa el modelo que le corresponde, sin tocar el harness."""
 
@@ -107,22 +112,18 @@ class RuteoPorRol(unittest.TestCase):
             "databricks-claude-haiku-4-5",
             "databricks-claude-sonnet-4-5",
             "databricks-claude-opus-4-1",
-        ])
+        ], _ref)
         self.assertEqual(agentes["build"]["model"], f"{gc.PROVEEDOR}/databricks-claude-sonnet-4-5")
         self.assertEqual(agentes["plan"]["model"], f"{gc.PROVEEDOR}/databricks-claude-haiku-4-5")
 
     def test_los_subagentes_de_lectura_usan_el_barato(self):
-        agentes = gc.construir_agentes(["databricks-gemma-3-12b", "databricks-gpt-oss-120b"])
+        agentes = gc.construir_agentes(["databricks-gemma-3-12b", "databricks-gpt-oss-120b"], _ref)
         for rol in ("explore", "scout"):
             self.assertEqual(agentes[rol]["model"], f"{gc.PROVEEDOR}/databricks-gemma-3-12b")
 
     def test_con_un_solo_modelo_no_rutea(self):
         """Repartir roles entre un único modelo no aporta nada."""
-        self.assertEqual(gc.construir_agentes(["databricks-gemma-3-12b"]), {})
-
-if __name__ == "__main__":
-    unittest.main()
-
+        self.assertEqual(gc.construir_agentes(["databricks-gemma-3-12b"], _ref), {})
 
 class PreferenciasDeModelo(unittest.TestCase):
     """Sonnet de principal y Haiku de auxiliar; Opus queda para elegirlo a mano."""
@@ -275,3 +276,91 @@ class DetectarForma(unittest.TestCase):
     def test_la_pregunta_sonda_da_trabajo(self):
         """Con un saludo trivial el modelo contesta directo y nunca razona."""
         self.assertGreater(len(gc.PREGUNTA_SONDA), 60)
+
+
+
+class ViaNativaDeAnthropic(unittest.TestCase):
+    """Claude por su API Messages en vez del contrato OpenAI.
+
+    Es lo que evita `Invalid input: expected string, received array`: Sonnet 4.5 manda
+    el razonamiento como lista de bloques, que por la vía nativa es contrato válido y
+    por la compatible es un error del que el cliente no se recupera.
+    """
+
+    HOST = "https://ejemplo.cloud.databricks.com"
+
+    def _config(self, detalles, anthropic):
+        endpoints = [{"name": n} for n in detalles]
+        return gc.construir_config(self.HOST, endpoints, detalles, anthropic)
+
+    def _solo_claude(self, auth="bearer"):
+        nombres = ["databricks-claude-sonnet-4-5", "databricks-claude-haiku-4-5"]
+        detalles = {n: {"forma": "nativa", "limite": 8192} for n in nombres}
+        anthropic = {"auth": auth, "cabeceras": {},
+                     "modelos": {n: n.removeprefix("databricks-") for n in nombres}}
+        return self._config(detalles, anthropic)
+
+    def test_claude_va_por_el_proveedor_nativo(self):
+        c = self._solo_claude()
+        self.assertEqual(list(c["provider"]), [gc.PROVEEDOR_CLAUDE])
+        proveedor = c["provider"][gc.PROVEEDOR_CLAUDE]
+        self.assertEqual(proveedor["npm"], "@ai-sdk/anthropic")
+        self.assertTrue(proveedor["options"]["baseURL"].endswith(gc.RUTA_ANTHROPIC))
+
+    def test_usa_el_nombre_de_anthropic_no_el_del_endpoint(self):
+        """El passthrough no conoce `databricks-claude-sonnet-4-5`."""
+        c = self._solo_claude()
+        self.assertIn("claude-sonnet-4-5", c["provider"][gc.PROVEEDOR_CLAUDE]["models"])
+        self.assertEqual(c["model"], f"{gc.PROVEEDOR_CLAUDE}/claude-sonnet-4-5")
+
+    def test_inyecta_bearer_solo_cuando_hace_falta(self):
+        """El SDK manda x-api-key; si el workspace quiere Bearer, se agrega la cabecera."""
+        con_bearer = self._solo_claude("bearer")["provider"][gc.PROVEEDOR_CLAUDE]["options"]
+        self.assertEqual(con_bearer["headers"]["Authorization"], "Bearer {env:DATABRICKS_TOKEN}")
+        con_clave = self._solo_claude("x-api-key")["provider"][gc.PROVEEDOR_CLAUDE]["options"]
+        self.assertNotIn("headers", con_clave)
+
+    def test_los_roles_apuntan_al_proveedor_nativo(self):
+        agentes = self._solo_claude()["agent"]
+        for rol in ("build", "plan", "explore", "scout"):
+            self.assertTrue(agentes[rol]["model"].startswith(gc.PROVEEDOR_CLAUDE + "/"))
+
+    def test_un_workspace_mixto_usa_los_dos_proveedores(self):
+        detalles = {
+            "databricks-claude-sonnet-4-5": {"forma": "nativa", "limite": 8192},
+            "databricks-meta-llama-3-1-8b-instruct": {"forma": "string", "limite": 8192},
+        }
+        anthropic = {"auth": "bearer", "cabeceras": {},
+                     "modelos": {"databricks-claude-sonnet-4-5": "claude-sonnet-4-5"}}
+        c = self._config(detalles, anthropic)
+        self.assertEqual(sorted(c["provider"]), sorted([gc.PROVEEDOR, gc.PROVEEDOR_CLAUDE]))
+        self.assertEqual(c["enabled_providers"], list(c["provider"]))
+        self.assertIn("databricks-meta-llama-3-1-8b-instruct",
+                      c["provider"][gc.PROVEEDOR]["models"])
+
+    def test_sin_via_nativa_todo_sigue_como_antes(self):
+        detalles = {"databricks-claude-sonnet-4-5": {"forma": "string", "limite": 8192},
+                    "databricks-claude-haiku-4-5": {"forma": "string", "limite": 8192}}
+        c = self._config(detalles, None)
+        self.assertEqual(list(c["provider"]), [gc.PROVEEDOR])
+        self.assertEqual(c["model"], f"{gc.PROVEEDOR}/databricks-claude-sonnet-4-5")
+
+    def test_el_filtro_de_bloques_no_aplica_a_la_via_nativa(self):
+        """Por la nativa los bloques son contrato, no un defecto: no debe descartarse."""
+        detalles = {"databricks-claude-sonnet-4-5": {"forma": "bloques", "limite": 8192}}
+        anthropic = {"auth": "bearer", "cabeceras": {},
+                     "modelos": {"databricks-claude-sonnet-4-5": "claude-sonnet-4-5"}}
+        c = self._config(detalles, anthropic)
+        self.assertIn("claude-sonnet-4-5", c["provider"][gc.PROVEEDOR_CLAUDE]["models"])
+
+    def test_prueba_el_nombre_de_anthropic_antes_que_el_del_endpoint(self):
+        self.assertEqual(gc.nombres_anthropic("databricks-claude-opus-4-1"),
+                         ["claude-opus-4-1", "databricks-claude-opus-4-1"])
+
+    def test_reconoce_los_endpoints_de_claude(self):
+        self.assertTrue(gc.es_claude("databricks-claude-sonnet-4-5"))
+        self.assertFalse(gc.es_claude("databricks-meta-llama-3-1-8b-instruct"))
+
+
+if __name__ == "__main__":
+    unittest.main()

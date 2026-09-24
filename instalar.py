@@ -83,11 +83,14 @@ def resolver_host(indicado: str | None) -> str:
         return os.environ["DATABRICKS_HOST"].rstrip("/")
     if CONFIG.exists():
         try:
-            url = json.loads(CONFIG.read_text())["provider"][gc.PROVEEDOR]["options"]["baseURL"]
-            previo = url.removesuffix("/serving-endpoints")
+            # Sirve cualquier proveedor: en un workspace solo-Claude el compatible no
+            # existe, y el nativo cuelga de otra ruta.
+            proveedores = json.loads(CONFIG.read_text())["provider"].values()
+            url = next(p["options"]["baseURL"] for p in proveedores)
+            previo = url.removesuffix(gc.RUTA_ANTHROPIC).removesuffix("/serving-endpoints")
             respuesta = input(f"  Workspace [{previo}]: ").strip()
             return (respuesta or previo).rstrip("/")
-        except (KeyError, json.JSONDecodeError):
+        except (KeyError, StopIteration, json.JSONDecodeError):
             pass
     print("  La URL del workspace es la del navegador, por ejemplo:")
     print("    https://dbc-xxxxxxxx-xxxx.cloud.databricks.com")
@@ -145,19 +148,32 @@ def generar(host: str, token: str, rapido: bool) -> dict:
         _error("El workspace no tiene endpoints de chat servidos.")
     print(f"  {len(endpoints)} endpoints de chat encontrados")
 
+    # Claude por su API nativa evita que el razonamiento rompa el contrato OpenAI, y
+    # es la superficie para la que el modelo fue entrenado.
+    claude = [e["name"] for e in endpoints if gc.es_claude(e["name"])]
+    anthropic = gc.detectar_anthropic(host, token, claude)
+    if anthropic:
+        print(f"  ✓ API nativa de Anthropic disponible ({anthropic['auth']})")
+
     detalles = {}
     for endpoint in endpoints:
         nombre = endpoint["name"]
-        forma = gc.detectar_forma(host, token, nombre)
         limite = gc.SALIDA_POR_DEFECTO if rapido else gc.sondear_limite(host, token, nombre)
+        if anthropic and nombre in anthropic["modelos"]:
+            # Por la vía nativa los bloques son parte del contrato: sondear la forma
+            # descartaría el modelo por algo que ahí no es un problema.
+            detalles[nombre] = {"forma": "nativa", "limite": limite}
+            print(f"    ✓ {nombre} (nativo, salida ≤ {limite})")
+            continue
+        forma = gc.detectar_forma(host, token, nombre)
         detalles[nombre] = {"forma": forma, "limite": limite}
         if forma == "bloques":
             print(f"    - {nombre}: descartado (no respeta el contrato OpenAI)")
         else:
             print(f"    ✓ {nombre} (salida ≤ {limite})")
 
-    config = gc.construir_config(host, endpoints, detalles)
-    if not config["provider"][gc.PROVEEDOR]["models"]:
+    config = gc.construir_config(host, endpoints, detalles, anthropic)
+    if not any(p["models"] for p in config["provider"].values()):
         _error("Ningún endpoint es usable: todos devuelven bloques en vez de texto.")
     CONFIG.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
     print(f"  ✓ {CONFIG.name} generado")

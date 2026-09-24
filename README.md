@@ -268,10 +268,40 @@ python3 instalar.py --sin-verificar   # regenerar config por si cambió el esque
 ./node_modules/.bin/opencode          # probar antes de commitear el lock
 ```
 
+## Cómo habla con cada modelo
+
+Databricks expone dos contratos, y `generar_config.py` elige el que corresponde:
+
+| Modelos | Contrato | Proveedor en la config |
+|---|---|---|
+| Claude | API Messages de Anthropic | `cuy-claude` (`@ai-sdk/anthropic`) |
+| El resto | OpenAI-compatible | `cuy` (`@ai-sdk/openai-compatible`) |
+
+**Claude va por su API nativa por dos razones.** La primera es que la otra se rompe:
+Sonnet 4.5 manda el razonamiento como lista de bloques dentro de `delta.content`, donde
+la especificación de OpenAI exige un string, y el cliente corta con `Invalid input:
+expected string, received array`. No es configuración: el endpoint lo emite sin que se lo
+pidan, así que del lado del cliente no hay nada que hacer. La segunda es la tesis del
+RFC — un modelo rinde mejor contra la superficie para la que fue entrenado.
+
+Todo se descubre solo: si el passthrough responde, con qué autenticación (`Bearer` o
+`x-api-key`) y con qué nombre acepta cada modelo (`claude-sonnet-4-5`, no
+`databricks-claude-sonnet-4-5`). Si no responde, Claude vuelve al contrato OpenAI.
+
+Para verificarlo a mano contra tu workspace:
+
+```bash
+python spike/probar_anthropic.py
+```
+
+
 ## Gotchas encontrados
 
 - **El límite de tokens es por modelo**, no global (`gpt-oss-120b`: 25000,
   `llama-4-maverick`: 8192). El error no dice cuál ni de dónde sale el número.
+- **Un sondeo trivial da falsos aprobados.** Preguntar "di: ok" sin streaming hacía pasar
+  a Sonnet 4.5, que reventaba en la primera tarea real: el razonamiento solo aparece
+  cuando el modelo de verdad razona, y en el camino de streaming.
 - **`small_model` hay que declararlo**: OpenCode apunta por defecto a un modelo que no
   existe en el workspace y da 404 en cada sesión, solo visible en el log.
 - **Un agente "lento" puede ser backoff de reintentos.** Mirar
