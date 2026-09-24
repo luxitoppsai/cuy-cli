@@ -36,11 +36,16 @@ pantalla ni dejarlo en el historial, descubre qué modelos sirve tu workspace, g
 configuración, instala OpenCode local al proyecto y **hace una llamada real para
 confirmar que responde** antes de decir que terminó.
 
-Después:
+Después, **usá siempre el lanzador**:
 
 ```bash
-./node_modules/.bin/opencode
+./cuy
 ```
+
+No es `opencode` a secas: `./cuy` aplica el blindaje de red. Sin él, OpenCode contacta
+`api.opencode.ai` durante una sesión normal aunque tu proveedor sea propio. Verificado
+observando las conexiones reales del proceso — con el lanzador, el único destino es tu
+Databricks. Detalle y forma de reproducirlo: [spike/RED.md](./spike/RED.md).
 
 También reparte los roles entre los modelos que encontró (D3 del RFC): el capaz ejecuta
 y edita, el barato planifica y explora. OpenCode liga un modelo a cada agente de forma
@@ -119,6 +124,22 @@ Retención de 90 días por defecto (`CUY_RETENCION_DIAS`), y se apaga con
 > registra, así que puede editarlo. Sirve para saber qué hizo el agente y repartir
 > consumo, no para sostener una acusación. Para eso habría que centralizarlo fuera del
 > alcance del usuario — hoy fuera de alcance a propósito.
+
+## Aislamiento de red
+
+`./cuy` desactiva todas las salidas de red que no sean tu proveedor: verificación de
+actualizaciones, descarga del catálogo de modelos, **compartir sesiones** —que subiría la
+conversación con el código adentro a un servidor de terceros—, descarga de servidores de
+lenguaje y skills remotas.
+
+| | Destinos contactados |
+|---|---|
+| `opencode` directo | `api.opencode.ai` + tu proveedor |
+| `./cuy` | **solo tu proveedor** |
+
+Si seguridad de tu empresa pide más garantía que unas variables de entorno, el siguiente
+escalón es una regla de firewall que solo permita salida al host de Databricks: eso no
+depende de que el binario respete su propia configuración.
 
 ## Qué vive dónde
 
