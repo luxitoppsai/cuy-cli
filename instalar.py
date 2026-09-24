@@ -44,7 +44,7 @@ def _error(texto: str) -> None:
     sys.exit(f"\n  ✗ {texto}")
 
 
-def verificar_requisitos() -> str:
+def verificar_requisitos(necesita_npm: bool = False) -> str | None:
     """Comprueba que estén las herramientas necesarias antes de empezar.
 
     Fallar acá con un mensaje claro es mucho mejor que fallar tres pasos después con
@@ -54,6 +54,10 @@ def verificar_requisitos() -> str:
     :raises SystemExit: Si falta Node o npm.
     """
     npm = shutil.which("npm")
+    if not necesita_npm:
+        # Compilando no hace falta Node: el binario se arma con bun.
+        print(f"  ✓ Python {sys.version_info.major}.{sys.version_info.minor}")
+        return npm
     if not npm:
         _error(
             "Falta Node.js (que trae npm), necesario para OpenCode.\n"
@@ -182,9 +186,12 @@ def compilar_desde_fuente() -> pathlib.Path:
     bun = shutil.which("bun")
     if not bun:
         _error(
-            "Falta bun, necesario para compilar.\n"
+            "Falta bun, necesario para compilar el binario propio.\n"
             "    macOS/Linux: curl -fsSL https://bun.sh/install | bash\n"
-            "    Windows:     powershell -c \"irm bun.sh/install.ps1 | iex\""
+            "    Windows:     powershell -c \"irm bun.sh/install.ps1 | iex\"\n"
+            "\n"
+            f"    O si no podés instalarlo:  {PY} instalar.py --sin-compilar\n"
+            "    (funciona igual, pero con el logo de OpenCode)"
         )
 
     # El fuente viaja dentro de este repo (subtree en vendor/): un `git clone` se lo
@@ -284,14 +291,14 @@ def main() -> int:
     parser.add_argument("--host", help="URL del workspace de Databricks")
     parser.add_argument("--rapido", action="store_true", help="No sondear los límites de tokens")
     parser.add_argument("--sin-verificar", action="store_true", help="No hacer la llamada de prueba")
-    parser.add_argument("--compilar", action="store_true",
-                        help="Compilar el binario propio desde el fork (con el logo de cuy-cli)")
+    parser.add_argument("--sin-compilar", action="store_true",
+                        help="Usar el binario de npm en vez de compilar (más rápido, sin la marca propia)")
     args = parser.parse_args()
 
     print("Instalación de cuy-cli")
 
     _paso(1, "Verificando requisitos")
-    npm = verificar_requisitos()
+    npm = verificar_requisitos(necesita_npm=args.sin_compilar)
 
     _paso(2, "Conexión al workspace")
     host = resolver_host(args.host)
@@ -301,7 +308,7 @@ def main() -> int:
     config = generar(host, token, args.rapido)
 
     _paso(4, "Instalando el agente")
-    binario = compilar_desde_fuente() if args.compilar else instalar_opencode(npm)
+    binario = instalar_opencode(npm) if args.sin_compilar else compilar_desde_fuente()
     instalar_plugin()
 
     _paso(5, "Verificando que responde")

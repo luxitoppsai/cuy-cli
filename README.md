@@ -26,48 +26,21 @@ construye acá y se valida allá. Nada debe asumir en el código qué modelos ex
 
 ## Instalación
 
-Hay **dos formas**, y la diferencia es solo la marca que ves al arrancar.
-
-### Opción A — rápida (un minuto)
-
-Usa el binario oficial de OpenCode. **Al arrancar vas a ver el logo de OpenCode**, no el
-de cuy-cli.
-
 ```
 git clone https://github.com/luxitoppsai/cuy-cli.git
 cd cuy-cli
 python instalar.py          # en macOS/Linux: python3
 ```
 
-### Opción B — con la marca de cuy-cli
+Eso es todo. El instalador compila el binario desde el fuente que viene en el repo
+—por eso arranca con el logo de cuy-cli—, descubre qué modelos sirve tu workspace,
+genera la configuración, instala los plugins y **hace una llamada real para confirmar
+que responde** antes de decir que terminó.
 
-Compila el binario desde el fuente que viene en este repo. **Esta es la única forma de
-ver el logo de cuy-cli**: el logo y el nombre están dentro del binario y ninguna
-configuración los cambia.
+Requiere [bun](https://bun.sh). La primera vez tarda varios minutos porque descarga
+~2 GB de dependencias; las siguientes son rápidas.
 
-```
-python instalar.py --compilar
-```
-
-Requiere [bun](https://bun.sh) y descarga ~2 GB de dependencias, así que tarda varios
-minutos la primera vez.
-
-| | Opción A | Opción B |
-|---|---|---|
-| Tiempo | ~1 minuto | ~15 minutos |
-| Logo al arrancar | OpenCode | **cuy-cli** |
-| Requiere bun | no | **sí** |
-| Todo lo demás | idéntico | idéntico |
-
-Al terminar, el instalador te dice cuál quedó:
-
-```
-  Marca         : cuy-cli (binario compilado por vos)
-```
-
-Si dice "OpenCode (binario de npm)", corriste la opción A.
-
-### Después, en los dos casos
+Después:
 
 ```
 cuy.cmd          # Windows
@@ -75,22 +48,27 @@ cuy.cmd          # Windows
 ```
 
 **Usá siempre el lanzador**, no `opencode` a secas: aplica el blindaje de red. Sin él,
-OpenCode contacta `api.opencode.ai` durante una sesión normal aunque tu proveedor sea
+el agente contacta `api.opencode.ai` durante una sesión normal aunque tu proveedor sea
 propio ([spike/RED.md](./spike/RED.md)).
 
 **Al cambiar de workspace** volvés a correr el instalador y se reconfigura solo. En el
 Databricks del trabajo detecta los Claude y los ordena por nivel sin que averigües nada.
 
-### Si `--compilar` falla
+### Si no podés compilar
 
-Es lo más frágil del proceso. Dos fallas conocidas:
+```
+python instalar.py --sin-compilar
+```
 
-- **`tree-sitter-powershell` falla al compilar** (necesita Visual Studio Build Tools en
-  Windows). Es una gramática de resaltado, **no es fatal**: si `node_modules` quedó
-  completo, volvé a correr el instalador y el build sigue.
-- **Falta bun**: `powershell -c "irm bun.sh/install.ps1 | iex"` en Windows.
+Usa el binario oficial de OpenCode en vez de compilar: arranca en un minuto y no
+necesita bun, pero **vas a ver el logo de OpenCode**. Todo lo demás es idéntico.
 
-Si se complica, usá la opción A. Perdés el logo, no la herramienta.
+Dos fallas conocidas al compilar:
+
+- **Falta bun** — `powershell -c "irm bun.sh/install.ps1 | iex"` en Windows.
+- **`tree-sitter-powershell` falla** (necesita Visual Studio Build Tools en Windows). Es
+  una gramática de resaltado y **no es fatal**: si `node_modules` quedó completo, volvé
+  a correr el instalador y el build sigue.
 
 
 ### Opciones
