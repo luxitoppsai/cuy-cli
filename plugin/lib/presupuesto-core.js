@@ -5,10 +5,11 @@
  * plugin como si fuera una fábrica de plugins, así que exportar funciones auxiliares
  * desde ahí rompe la carga —las invoca con el contexto del plugin como argumento—.
  *
- * **Por qué la tarifa se declara y no se lee.** Databricks devuelve tokens, nunca
- * costo. Y no cobra en dólares por token sino en **DBU por millón de tokens**, con un
- * dólar por DBU que depende del contrato de cada empresa. Por eso el cálculo son dos
- * factores separados —tarifa en DBU y dólares por DBU— y ambos se pueden declarar.
+ * **Por qué acá ya no hay tabla de precios.** La había, y calculaba el costo a mano a
+ * partir de los tokens. Era trabajo duplicado: OpenCode calcula el costo de cada paso
+ * él mismo, siempre que el modelo declare su tarifa en `opencode.json`. Ahora la tarifa
+ * se declara una sola vez —`generar_config.py` la traduce de DBU a dólares— y acá solo
+ * se suma lo que OpenCode ya calculó.
  */
 
 import fs from "node:fs";
@@ -20,97 +21,24 @@ export const AVISO = Number(process.env.CUY_AVISO_PORCENTAJE ?? 80);
 
 const CARPETA = path.join(os.homedir(), ".local", "share", "cuy-cli");
 export const GASTO_ARCHIVO = process.env.CUY_GASTO ?? path.join(CARPETA, "gasto.json");
-export const PRECIOS_ARCHIVO = process.env.CUY_PRECIOS ?? path.join(CARPETA, "precios.json");
 
 /**
- * Dólares por DBU. Es el convenio estándar de Model Serving, pero **depende del
- * contrato**: cada empresa negocia el suyo y varía por nube y región.
+ * Saca el costo de un evento, si el evento es el que cierra un paso del modelo.
+ *
+ * OpenCode emite dos señales con costo y **solo una sirve para sumar**: el mensaje del
+ * asistente lleva el costo *acumulado* —sumarlo en cada actualización contaría de más—,
+ * mientras que la parte `step-finish` lleva el costo *de ese paso* y se emite una sola
+ * vez, con un id nuevo. Se usa la segunda.
+ *
+ * @param {object} evento Evento recibido en el hook `event`.
+ * @returns {number} Costo en dólares del paso, o 0 si el evento no es un cierre de paso.
  */
-export const USD_POR_DBU = Number(process.env.CUY_USD_POR_DBU ?? 0.07);
-
-/**
- * Tarifas en **DBU por millón de tokens**, que es como las publica Databricks.
- *
- * Databricks no cobra en dólares por token sino en DBU, y el dólar por DBU depende del
- * contrato: por eso se separan las dos cosas en vez de guardar un precio en dólares.
- *
- * Todas las tarifas de Claude son las reales de Databricks. Vale saber que **no
- * coinciden con la lista de Anthropic**: Opus se factura a un tercio de ella. Derivarlas
- * de precios públicos, como se hizo en un primer intento, daba números muy equivocados.
- *
- * Para los números de tu contrato, escribí `precios.json` con la misma forma.
- */
-export const DBU_POR_DEFECTO = {
-  opus: { entrada: 71.42857, salida: 357.142857 },
-  sonnet: { entrada: 42.857, salida: 214.286 },
-  haiku: { entrada: 14.286, salida: 71.429 },
-  "llama-4-maverick": { entrada: 7.143, salida: 21.429 },
-  "llama-3-1-8b": { entrada: 2.143, salida: 6.429 },
-  "gpt-oss-20b": { entrada: 1.0, salida: 4.286 },
-};
-
-/**
- * Busca la tarifa en DBU de un modelo, por nombre exacto o por familia.
- *
- * @param {string} modelo Identificador del modelo.
- * @param {object} tabla Tarifas declaradas por el usuario, en DBU.
- * @returns {{entrada: number, salida: number}|null} Tarifa, o null si no se conoce.
- */
-export function dbuDe(modelo, tabla = {}) {
-  if (!modelo) return null;
-  if (tabla[modelo]) return tabla[modelo];
-  const nombre = String(modelo).toLowerCase();
-  const combinadas = { ...DBU_POR_DEFECTO, ...tabla };
-  // Primero las claves más específicas: "llama-3-1-8b" debe ganarle a "llama".
-  for (const clave of Object.keys(combinadas).sort((a, b) => b.length - a.length)) {
-    if (nombre.includes(clave)) return combinadas[clave];
-  }
-  return null;
-}
-
-/**
- * Calcula el costo en dólares de un uso concreto.
- *
- * Los nombres de los contadores difieren entre proveedores (`input_tokens` en
- * Anthropic, `prompt_tokens` en OpenAI) y Databricks devuelve uno u otro según el
- * endpoint: se aceptan ambos.
- *
- * @param {object} uso Objeto de uso de la respuesta.
- * @param {string} modelo Modelo que la produjo.
- * @param {object} tabla Tarifas declaradas, en DBU por millón de tokens.
- * @param {number} usdPorDbu Dólares por DBU según el contrato.
- * @returns {number} Costo en dólares; 0 si no se conoce la tarifa del modelo.
- */
-export function costoDe(uso, modelo, tabla = {}, usdPorDbu = USD_POR_DBU) {
-  if (!uso || typeof uso !== "object") return 0;
-  const dbu = dbuDe(modelo, tabla);
-  if (!dbu) return 0;
-  const entrada = Number(uso.input_tokens ?? uso.prompt_tokens ?? 0);
-  const salida = Number(uso.output_tokens ?? uso.completion_tokens ?? 0);
-  if (!Number.isFinite(entrada) || !Number.isFinite(salida)) return 0;
-  const dbusConsumidos = (entrada * dbu.entrada + salida * dbu.salida) / 1_000_000;
-  return dbusConsumidos * usdPorDbu;
-}
-
-/**
- * Busca el objeto de uso dentro de un evento, sin asumir su ubicación exacta.
- *
- * La forma de los eventos cambia entre versiones, así que se recorre el objeto en vez
- * de fijar una ruta. Perder la cuenta es preferible a romper la sesión del usuario.
- *
- * @param {object} nodo Evento recibido en el hook.
- * @param {number} profundidad Control interno de recursión.
- * @returns {object|null} El objeto de uso, o null.
- */
-export function buscarUso(nodo, profundidad = 0) {
-  if (!nodo || typeof nodo !== "object" || profundidad > 6) return null;
-  if (nodo.usage && typeof nodo.usage === "object") return nodo.usage;
-  if ("input_tokens" in nodo || "prompt_tokens" in nodo) return nodo;
-  for (const valor of Object.values(nodo)) {
-    const encontrado = buscarUso(valor, profundidad + 1);
-    if (encontrado) return encontrado;
-  }
-  return null;
+export function costoDelEvento(evento) {
+  if (evento?.type !== "message.part.updated") return 0;
+  const parte = evento?.properties?.part;
+  if (parte?.type !== "step-finish") return 0;
+  const costo = Number(parte.cost);
+  return Number.isFinite(costo) && costo > 0 ? costo : 0;
 }
 
 /** Mes actual como ``AAAA-MM``, que es la clave con la que se acumula el gasto. */
@@ -157,15 +85,6 @@ export function sumarGasto(usd, archivo = GASTO_ARCHIVO, mes = mesActual()) {
     // Contabilizar es importante, pero no al punto de romper la sesión.
   }
   return datos[mes];
-}
-
-/** Precios declarados por el usuario, si existen. */
-export function leerPrecios(archivo = PRECIOS_ARCHIVO) {
-  try {
-    return JSON.parse(fs.readFileSync(archivo, "utf8"));
-  } catch {
-    return {};
-  }
 }
 
 /**

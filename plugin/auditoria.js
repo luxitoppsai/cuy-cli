@@ -52,18 +52,27 @@ export const Auditoria = async ({ directory }) => {
 
     // Deja constancia de lo que la política bloqueó o preguntó: es la mitad
     // interesante de una auditoría, y la que no queda en ningún otro lado.
-    "permission.asked": async (input) => {
+    //
+    // El nombre es `permission.ask`, no `permission.asked`: OpenCode solo invoca los
+    // nombres de su interfaz `Hooks` y descarta el resto en silencio.
+    "permission.ask": async (input) => {
       anotar({
         cuando: new Date().toISOString(),
         sesion,
         ...quien,
         evento: "permiso.consultado",
-        permiso: input?.permission ?? input?.type,
-        patron: String(input?.pattern ?? "").slice(0, 200),
+        permiso: input?.type,
+        titulo: String(input?.title ?? "").slice(0, 200),
+        // `pattern` es string o lista de strings según el tipo de permiso.
+        patron: [input?.pattern ?? ""].flat().join(", ").slice(0, 200),
       });
     },
 
-    "session.idle": async () => {
+    // El fin de sesión no es un hook sino un evento, y los eventos llegan todos por
+    // acá. Declararlo como `"session.idle"` de primer nivel no lo llamaba nunca.
+    event: async ({ event }) => {
+      if (event?.type !== "session.status") return;
+      if (event?.properties?.status?.type !== "idle") return;
       anotar({ cuando: new Date().toISOString(), sesion, ...quien, evento: "sesion.fin", acciones });
     },
   };

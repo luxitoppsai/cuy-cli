@@ -14,7 +14,6 @@ from datetime import datetime
 
 CARPETA = pathlib.Path.home() / ".local" / "share" / "cuy-cli"
 GASTO = pathlib.Path(os.environ.get("CUY_GASTO", CARPETA / "gasto.json"))
-PRECIOS = pathlib.Path(os.environ.get("CUY_PRECIOS", CARPETA / "precios.json"))
 LIMITE = float(os.environ.get("CUY_LIMITE_USD", "10"))
 
 
@@ -43,13 +42,10 @@ def main() -> int:
             print(f"  {k}: ${float(otros[k]):.2f}")
 
     usd_dbu = os.environ.get("CUY_USD_POR_DBU", "0.07")
-    print(f"\nTarifas: {'declaradas en ' + str(PRECIOS) if PRECIOS.exists() else 'estimadas'}"
-          f"  |  ${usd_dbu} por DBU")
-    if not PRECIOS.exists():
-        print("  Databricks cobra en DBU por millón de tokens, no en dólares por token.")
-        print("  Para usar las de tu contrato, creá ese archivo (valores en DBU):")
-        print('  {"databricks-claude-opus-4-1": {"entrada": 214.286, "salida": 1071.43}}')
-        print("  Y si tu dólar por DBU no es 0.07:  CUY_USD_POR_DBU=0.05")
+    print(f"\nTarifas: declaradas en opencode.json  |  ${usd_dbu} por DBU")
+    print("  Databricks cobra en DBU por millón de tokens, no en dólares por token.")
+    print("  Para cambiarlas: editá DBU_POR_MILLON en generar_config.py, o corré")
+    print("  CUY_USD_POR_DBU=0.05 python generar_config.py  si tu contrato no es 0.07.")
     return 0
 
 

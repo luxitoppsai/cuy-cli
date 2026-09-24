@@ -235,6 +235,51 @@ PREFERIDOS_PRINCIPAL = ["sonnet", "opus"]
 PREFERIDOS_AUXILIAR = ["haiku"]
 
 
+# Dólares por DBU. Es el convenio estándar de Model Serving, pero **depende del
+# contrato**: cada empresa negocia el suyo y varía por nube y región.
+USD_POR_DBU = float(os.environ.get("CUY_USD_POR_DBU", "0.07"))
+
+# Tarifas en **DBU por millón de tokens**, que es como las publica Databricks. Las de
+# Claude son las reales del workspace, y vale saber que **no coinciden con la lista de
+# Anthropic**: Opus se factura a un tercio de ella. Derivarlas de precios públicos, como
+# se hizo en un primer intento, daba números muy equivocados.
+DBU_POR_MILLON = {
+    "opus": {"entrada": 71.42857, "salida": 357.142857},
+    "sonnet": {"entrada": 42.857, "salida": 214.286},
+    "haiku": {"entrada": 14.286, "salida": 71.429},
+    "llama-4-maverick": {"entrada": 7.143, "salida": 21.429},
+    "llama-3-1-8b": {"entrada": 2.143, "salida": 6.429},
+    "gpt-oss-20b": {"entrada": 1.0, "salida": 4.286},
+}
+
+
+def tarifa_usd(modelo: str, usd_por_dbu: float = USD_POR_DBU) -> dict | None:
+    """Traduce la tarifa en DBU de un modelo a dólares por millón de tokens.
+
+    Es lo que OpenCode entiende: declarar ``cost`` en cada modelo hace que calcule y
+    muestre el gasto de la sesión por su cuenta, sin que nadie lleve la cuenta aparte.
+
+    :param modelo: Nombre del endpoint.
+    :param usd_por_dbu: Dólares por DBU según el contrato.
+    :returns: ``{"input": …, "output": …}`` en USD por millón, o ``None`` si no se
+        conoce la tarifa del modelo —preferible a inventar un número—.
+    """
+    nombre = modelo.lower()
+    # Primero las claves más específicas: "llama-3-1-8b" debe ganarle a "llama".
+    for clave in sorted(DBU_POR_MILLON, key=len, reverse=True):
+        if clave in nombre:
+            dbu = DBU_POR_MILLON[clave]
+            # Cuatro decimales: las tarifas en DBU vienen ya redondeadas de Databricks,
+            # así que los dígitos de más son ruido de ese redondeo y no información
+            # (14.286 × 0.07 da 1.00002, no 1). A esta escala —dólares por millón de
+            # tokens— la diferencia es de centésimas de centavo.
+            return {
+                "input": round(dbu["entrada"] * usd_por_dbu, 4),
+                "output": round(dbu["salida"] * usd_por_dbu, 4),
+            }
+    return None
+
+
 def elegir(candidatos: list[str], preferidos: list[str], respaldo) -> str | None:
     """Elige un modelo por preferencia declarada, con respaldo por tamaño.
 
@@ -298,13 +343,17 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict) -> dict:
         for e in endpoints
         if detalles.get(e["name"], {}).get("forma") != "bloques"
     }
-    modelos = {
-        nombre: {
+    modelos = {}
+    for nombre, info in usables.items():
+        modelos[nombre] = {
             "name": _nombre_legible(nombre),
             "limit": {"context": 128000, "output": info["limite"]},
         }
-        for nombre, info in usables.items()
-    }
+        # Sin `cost`, OpenCode calcula cero y la TUI no muestra el gasto: el indicador
+        # de la barra se omite cuando el costo es 0, no aparece en cero.
+        tarifa = tarifa_usd(nombre)
+        if tarifa:
+            modelos[nombre]["cost"] = tarifa
 
     # Se ordena por tamaño estimado, no por tope de tokens: el tope no se correlaciona
     # con la capacidad (dos modelos muy distintos pueden compartir el mismo 8192).

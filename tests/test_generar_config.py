@@ -167,3 +167,53 @@ class PreferenciasDeModelo(unittest.TestCase):
     def test_elige_la_version_mas_nueva_de_la_familia(self):
         c = self._config(["databricks-claude-sonnet-4", "databricks-claude-sonnet-4-5"])
         self.assertEqual(c["model"], f"{gc.PROVEEDOR}/databricks-claude-sonnet-4-5")
+
+
+class TarifaUsd(unittest.TestCase):
+    """La tarifa que se declara en `opencode.json` para que OpenCode muestre el gasto.
+
+    Antes este cálculo vivía en el plugin de presupuesto y se hacía a mano. Ahora se
+    declara una vez y OpenCode calcula: estas pruebas son las que se mudaron de
+    `presupuesto.test.mjs`.
+    """
+
+    def test_las_tarifas_de_claude_son_las_reales_de_databricks(self):
+        # A $0.07/DBU: Haiku $1/$5, Sonnet $3/$15, Opus $5/$25 por millón.
+        self.assertEqual(gc.tarifa_usd("databricks-claude-haiku-4-5"),
+                         {"input": 1.0, "output": 5.0})
+        self.assertEqual(gc.tarifa_usd("databricks-claude-sonnet-4"),
+                         {"input": 3.0, "output": 15.0})
+        self.assertEqual(gc.tarifa_usd("databricks-claude-opus-4-1"),
+                         {"input": 5.0, "output": 25.0})
+
+    def test_opus_no_cuesta_lo_que_la_lista_de_anthropic(self):
+        """Databricks lo factura a un tercio: $25 la salida, no $75."""
+        self.assertLess(gc.tarifa_usd("databricks-claude-opus-4-1")["output"], 30)
+
+    def test_la_clave_mas_especifica_gana(self):
+        """'llama-3-1-8b' no debe caer en una coincidencia más corta."""
+        self.assertEqual(gc.tarifa_usd("databricks-meta-llama-3-1-8b-instruct"),
+                         gc.tarifa_usd("llama-3-1-8b"))
+
+    def test_un_modelo_desconocido_no_tiene_tarifa(self):
+        """Preferible a inventar un número."""
+        self.assertIsNone(gc.tarifa_usd("databricks-gemma-3-12b"))
+
+    def test_otro_dolar_por_dbu_cambia_el_costo_proporcionalmente(self):
+        normal = gc.tarifa_usd("databricks-claude-sonnet-4", 0.07)
+        doble = gc.tarifa_usd("databricks-claude-sonnet-4", 0.14)
+        self.assertAlmostEqual(doble["input"], normal["input"] * 2, places=4)
+
+    def test_la_config_declara_el_costo_de_cada_modelo_conocido(self):
+        """Sin `cost`, OpenCode calcula cero y la TUI no muestra el gasto."""
+        c = gc.construir_config(
+            "https://ejemplo.cloud.databricks.com",
+            [{"name": "databricks-claude-sonnet-4"}, {"name": "databricks-gemma-3-12b"}],
+            {"databricks-claude-sonnet-4": {"forma": "string", "limite": 8192},
+             "databricks-gemma-3-12b": {"forma": "string", "limite": 8192}},
+        )
+        modelos = c["provider"][gc.PROVEEDOR]["models"]
+        self.assertEqual(modelos["databricks-claude-sonnet-4"]["cost"],
+                         {"input": 3.0, "output": 15.0})
+        # El desconocido se queda sin `cost` en vez de con un precio inventado.
+        self.assertNotIn("cost", modelos["databricks-gemma-3-12b"])

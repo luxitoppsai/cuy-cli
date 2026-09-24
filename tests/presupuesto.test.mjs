@@ -1,89 +1,58 @@
 /**
  * Pruebas del tope de gasto mensual.
  * Correr con:  node tests/presupuesto.test.mjs
+ *
+ * Las pruebas de tarifas ya no están acá: el precio se declara una sola vez en
+ * `opencode.json` y OpenCode calcula el costo. Lo que se prueba acá es de dónde se
+ * saca ese costo y cómo se acumula. La traducción de DBU a dólares se prueba en
+ * `tests/test_generar_config.py`.
  */
 import assert from "node:assert";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  dbuDe, costoDe, buscarUso, evaluar, mesActual, leerGasto, sumarGasto,
-  DBU_POR_DEFECTO, USD_POR_DBU,
+  costoDelEvento, evaluar, mesActual, leerGasto, sumarGasto,
 } from "../plugin/lib/presupuesto-core.js";
 
 const pruebas = [];
 const prueba = (nombre, fn) => pruebas.push([nombre, fn]);
 const temporal = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "cuy-")), "gasto.json");
 
-prueba("las tarifas de Claude son las reales de Databricks", () => {
-  // A $0.07/DBU: Haiku $1/$5, Sonnet $3/$15, Opus $5/$25 por millón.
-  const porMillon = (modelo, campo) =>
-    Math.round(costoDe({ [campo]: 1_000_000 }, modelo) * 100) / 100;
-  assert.equal(porMillon("claude-haiku-4-5", "input_tokens"), 1);
-  assert.equal(porMillon("claude-haiku-4-5", "output_tokens"), 5);
-  assert.equal(porMillon("claude-sonnet-4", "input_tokens"), 3);
-  assert.equal(porMillon("claude-opus-4-1", "input_tokens"), 5);
-  assert.equal(porMillon("claude-opus-4-1", "output_tokens"), 25);
+const cierreDePaso = (cost) => ({
+  type: "message.part.updated",
+  properties: { part: { type: "step-finish", cost, sessionID: "s1" } },
 });
 
-prueba("Opus en Databricks no cuesta lo que la lista de Anthropic", () => {
-  // Databricks lo factura a un tercio: $25 la salida, no $75. Derivarlo de precios
-  // públicos daba números muy equivocados.
-  const salida = costoDe({ output_tokens: 1_000_000 }, "claude-opus-4-1");
-  assert.ok(salida < 30, `Opus salida deberia rondar $25, dio $${salida}`);
+prueba("suma el costo del cierre de paso", () => {
+  assert.equal(costoDelEvento(cierreDePaso(0.42)), 0.42);
 });
 
-prueba("reconoce la tarifa en DBU por familia del modelo", () => {
-  assert.deepEqual(dbuDe("databricks-claude-opus-4-1"), DBU_POR_DEFECTO.opus);
-  assert.deepEqual(dbuDe("databricks-claude-haiku-4-5"), DBU_POR_DEFECTO.haiku);
+prueba("ignora el costo acumulado del mensaje", () => {
+  // `message.updated` trae el costo **acumulado** del mensaje: sumarlo en cada
+  // actualización contaría el mismo gasto muchas veces. Solo cuenta `step-finish`.
+  const acumulado = { type: "message.updated", properties: { info: { cost: 5 } } };
+  assert.equal(costoDelEvento(acumulado), 0);
 });
 
-prueba("la tarifa declarada gana sobre la estimada", () => {
-  const propio = { "databricks-claude-opus-4-1": { entrada: 1, salida: 2 } };
-  assert.deepEqual(dbuDe("databricks-claude-opus-4-1", propio), { entrada: 1, salida: 2 });
+prueba("ignora las partes que no cierran un paso", () => {
+  const texto = {
+    type: "message.part.updated",
+    properties: { part: { type: "text", text: "hola" } },
+  };
+  assert.equal(costoDelEvento(texto), 0);
 });
 
-prueba("la clave más específica gana sobre la genérica", () => {
-  // "llama-3-1-8b" no debe caer en una coincidencia más corta.
-  assert.deepEqual(dbuDe("databricks-meta-llama-3-1-8b-instruct"), DBU_POR_DEFECTO["llama-3-1-8b"]);
-});
-
-prueba("un modelo desconocido no tiene tarifa", () => {
-  assert.equal(dbuDe("databricks-gemma-3-12b"), null);
-});
-
-prueba("convierte DBU a dólares con el factor del contrato", () => {
-  // Sonnet: 42.857 DBU entrada + 214.286 salida, a $0.07/DBU = $3 + $15 = $18
-  const costo = costoDe({ input_tokens: 1_000_000, output_tokens: 1_000_000 }, "claude-sonnet-4");
-  assert.equal(Math.round(costo), 18);
-});
-
-prueba("un dólar por DBU distinto cambia el costo proporcionalmente", () => {
-  const uso = { input_tokens: 1_000_000, output_tokens: 1_000_000 };
-  const normal = costoDe(uso, "claude-sonnet-4", {}, USD_POR_DBU);
-  const doble = costoDe(uso, "claude-sonnet-4", {}, USD_POR_DBU * 2);
-  assert.equal(Math.round(doble), Math.round(normal * 2));
-});
-
-prueba("acepta los nombres de contador de OpenAI", () => {
-  const a = costoDe({ input_tokens: 1000, output_tokens: 0 }, "claude-haiku-4-5");
-  const b = costoDe({ prompt_tokens: 1000, completion_tokens: 0 }, "claude-haiku-4-5");
-  assert.equal(a, b);
-});
-
-prueba("sin tarifa conocida el costo es cero, no un invento", () => {
-  assert.equal(costoDe({ input_tokens: 999999 }, "modelo-raro"), 0);
-});
-
-prueba("no rompe con datos ausentes o basura", () => {
-  for (const caso of [null, undefined, {}, "texto", 42]) {
-    assert.equal(costoDe(caso, "claude-opus-4-1"), 0);
+prueba("no rompe con eventos ausentes o basura", () => {
+  for (const caso of [null, undefined, {}, "texto", 42, { type: "session.status" }]) {
+    assert.equal(costoDelEvento(caso), 0);
   }
 });
 
-prueba("encuentra el uso aunque esté anidado", () => {
-  const evento = { info: { message: { metadata: { usage: { input_tokens: 10 } } } } };
-  assert.deepEqual(buscarUso(evento), { input_tokens: 10 });
+prueba("un costo no numérico o negativo no suma", () => {
+  for (const caso of [null, undefined, "gratis", NaN, Infinity, -1]) {
+    assert.equal(costoDelEvento(cierreDePaso(caso)), 0);
+  }
 });
 
 prueba("el gasto se acumula por mes", () => {

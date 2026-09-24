@@ -180,16 +180,17 @@ CUY_LIMITE_USD=0 cuy.cmd         # sin tope
 
 **Sobre el precio.** Databricks devuelve tokens, nunca costo. Y no cobra en dólares por
 token sino en **DBU por millón de tokens**, con un valor del DBU que depende del
-contrato. El cálculo son dos factores, ambos declarables:
-
-```json
-// ~/.local/share/cuy-cli/precios.json — valores en DBU
-{ "databricks-claude-opus-4-1": { "entrada": 214.286, "salida": 1071.43 } }
-```
+contrato. `generar_config.py` traduce DBU a dólares y lo escribe como `cost` en cada
+modelo de `opencode.json`; de ahí en adelante **OpenCode calcula el gasto solo** y lo
+muestra en la barra, junto al porcentaje de contexto. El plugin no recalcula nada: suma
+lo que OpenCode ya calculó.
 
 ```bash
-CUY_USD_POR_DBU=0.05 cuy.cmd     # si tu dólar por DBU no es 0.07
+# si tu dólar por DBU no es 0.07, regenerá la config con el tuyo
+CUY_USD_POR_DBU=0.05 python generar_config.py
 ```
+
+Para tarifas de otro contrato, editá `DBU_POR_MILLON` en `generar_config.py`.
 
 Tarifas reales de Databricks para los Claude, en DBU por millón de tokens:
 
@@ -202,7 +203,8 @@ Tarifas reales de Databricks para los Claude, en DBU por millón de tokens:
 **No coinciden con la lista de Anthropic**: Opus se factura a un tercio de ella. Derivar
 las tarifas de precios públicos —como se intentó primero— daba números muy equivocados.
 
-Un modelo sin tarifa conocida suma **cero** en vez de inventar un número.
+Un modelo sin tarifa conocida se queda **sin `cost`** en vez de con un precio inventado:
+suma cero y no aparece en la barra.
 
 
 ## Auditoría
