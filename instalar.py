@@ -230,7 +230,20 @@ def compilar_desde_fuente() -> pathlib.Path:
     print("  Instalando dependencias (son ~2 GB, tarda varios minutos)...")
     dep = subprocess.run([bun, "install"], cwd=FUENTE, capture_output=True, text=True)
     if dep.returncode != 0:
-        _error(f"Falló la instalación de dependencias:\n{dep.stderr[-400:]}")
+        # `bun install` devuelve error si falla el script de instalación de *cualquier*
+        # dependencia, incluso una opcional que no usamos. El caso conocido es
+        # `tree-sitter-powershell`, que compila código nativo y falla donde no están
+        # las herramientas de compilación (Visual Studio Build Tools en Windows). Es
+        # una gramática de resaltado: no afecta al agente. Por eso no se aborta acá,
+        # sino que se sigue y se deja que falle el build si de verdad faltó algo.
+        problemas = [l for l in (dep.stderr or "").splitlines() if l.startswith("error:")]
+        print(f"  Aviso: {len(problemas) or 1} dependencia(s) opcional(es) no compilaron:")
+        for linea in problemas[:3]:
+            print(f"    {linea[:110]}")
+        print("    Se continúa: suelen ser gramáticas de resaltado que el agente no usa.")
+
+    if not (FUENTE / "node_modules").exists():
+        _error(f"No se instalaron las dependencias:\n{(dep.stderr or '')[-400:]}")
 
     print("  Compilando...")
     paquete = FUENTE / "packages" / "opencode"
