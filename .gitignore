@@ -16,3 +16,4 @@ opencode.json
 
 # Estado del sistema de memoria: se reescribe solo, no va al repo
 .memory/
+vendor/

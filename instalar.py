@@ -160,6 +160,65 @@ def generar(host: str, token: str, rapido: bool) -> dict:
     return config
 
 
+FORK = "https://github.com/luxitoppsai/opencode.git"
+RAMA = "cuy"
+FUENTE = RAIZ / "vendor" / "opencode"
+
+
+def compilar_desde_fuente() -> pathlib.Path:
+    """Clona el fork propio y compila el binario con la marca de cuy-cli.
+
+    El logo y el nombre del programa están dentro del binario: no hay configuración
+    que los cambie. La única forma de tenerlos propios es compilar, y eso implica
+    mantener el binario — por eso es opcional y no el camino por defecto.
+
+    Se salta la interfaz web embebida (`--skip-embed-web-ui`): su compilación depende
+    de paquetes nativos que fallan cuando la arquitectura de bun y la de node no
+    coinciden, y el lanzador la desactiva igual por el blindaje de red.
+
+    :returns: Ruta del binario compilado.
+    :raises SystemExit: Si falta bun o la compilación falla.
+    """
+    bun = shutil.which("bun")
+    if not bun:
+        _error(
+            "Falta bun, necesario para compilar.\n"
+            "    macOS/Linux: curl -fsSL https://bun.sh/install | bash\n"
+            "    Windows:     powershell -c \"irm bun.sh/install.ps1 | iex\""
+        )
+
+    if not FUENTE.exists():
+        print(f"  Clonando el fork ({RAMA})...")
+        FUENTE.parent.mkdir(parents=True, exist_ok=True)
+        clon = subprocess.run(
+            ["git", "clone", "--depth", "1", "--branch", RAMA, FORK, str(FUENTE)],
+            capture_output=True, text=True,
+        )
+        if clon.returncode != 0:
+            _error(f"No se pudo clonar el fork:\n{clon.stderr[-400:]}")
+    else:
+        print("  Fuente ya clonado; actualizando...")
+        subprocess.run(["git", "-C", str(FUENTE), "pull", "--ff-only"], capture_output=True)
+
+    print("  Instalando dependencias (son ~2 GB, tarda varios minutos)...")
+    dep = subprocess.run([bun, "install"], cwd=FUENTE, capture_output=True, text=True)
+    if dep.returncode != 0:
+        _error(f"Falló la instalación de dependencias:\n{dep.stderr[-400:]}")
+
+    print("  Compilando...")
+    paquete = FUENTE / "packages" / "opencode"
+    build = subprocess.run(
+        [bun, "run", "script/build.ts", "--single", "--skip-embed-web-ui"],
+        cwd=paquete, capture_output=True, text=True,
+    )
+    binarios = sorted((paquete / "dist").glob("*/bin/opencode*")) if (paquete / "dist").exists() else []
+    if build.returncode != 0 or not binarios:
+        _error(f"Falló la compilación:\n{(build.stderr or build.stdout)[-600:]}")
+
+    print(f"  ✓ Binario propio compilado ({binarios[0].stat().st_size // 1024 // 1024} MB)")
+    return binarios[0]
+
+
 def instalar_plugin() -> None:
     """Deja los plugins donde OpenCode los busca.
 
@@ -228,6 +287,8 @@ def main() -> int:
     parser.add_argument("--host", help="URL del workspace de Databricks")
     parser.add_argument("--rapido", action="store_true", help="No sondear los límites de tokens")
     parser.add_argument("--sin-verificar", action="store_true", help="No hacer la llamada de prueba")
+    parser.add_argument("--compilar", action="store_true",
+                        help="Compilar el binario propio desde el fork (con el logo de cuy-cli)")
     args = parser.parse_args()
 
     print("Instalación de cuy-cli")
@@ -242,8 +303,8 @@ def main() -> int:
     _paso(3, "Descubriendo modelos disponibles")
     config = generar(host, token, args.rapido)
 
-    _paso(4, "Instalando OpenCode")
-    binario = instalar_opencode(npm)
+    _paso(4, "Instalando el agente")
+    binario = compilar_desde_fuente() if args.compilar else instalar_opencode(npm)
     instalar_plugin()
 
     _paso(5, "Verificando que responde")

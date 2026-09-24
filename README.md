@@ -79,6 +79,34 @@ bash spike/01-conexion.sh                      # probar la API cruda (solo Unix)
 > `spike/01-conexion.sh`, que es una herramienta de diagnóstico, no parte del producto.
 
 
+## Marca propia (opcional)
+
+El logo y el nombre del programa están **dentro del binario**: no hay configuración que
+los cambie. Para tenerlos propios hay que compilar desde
+[el fork](https://github.com/luxitoppsai/opencode) (rama `cuy`):
+
+```bash
+python3 instalar.py --compilar
+```
+
+Eso clona el fork, compila y deja el binario propio, que el lanzador prefiere
+automáticamente:
+
+```
+█▀▀▀ █  █ █  █   █▀▀▀ █    ▀█▀
+█    █  █ ▀▄▄▀   █    █     █
+▀▀▀▀ ▀▀▀▀   ▀    ▀▀▀▀ ▀▀▀▀ ▀▀▀
+
+  cuy run [message..]     run cuy-cli with a message
+```
+
+**Requiere [bun](https://bun.sh) y descarga ~2 GB de dependencias**, así que tarda varios
+minutos. Por eso es opcional: sin `--compilar` se usa el binario de npm, con versión
+fijada, y arranca en un minuto. La diferencia es solo la marca.
+
+El fork mantiene los cambios en tres archivos, en una rama aparte, para que traer
+versiones nuevas de upstream sea rebasar un diff chico.
+
 ## Aspecto
 
 El instalador deja un tema propio (`tema/cuy.json`) — paleta cálida de tierra, pensada
