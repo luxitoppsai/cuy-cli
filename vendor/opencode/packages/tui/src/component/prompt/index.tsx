@@ -1,3 +1,4 @@
+import { recovery } from "../../util/cuy"
 import {
   BoxRenderable,
   RGBA,
@@ -43,7 +44,6 @@ import { errorMessage } from "../../util/error"
 import { formatDuration } from "../../util/format"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
-import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
 import { DialogAlert } from "../../ui/dialog-alert"
 import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
@@ -216,12 +216,10 @@ export function Prompt(props: PromptProps) {
   function promptModelWarning() {
     toast.show({
       variant: "warning",
-      message: "Connect a provider to send prompts",
+      message: "Primero configurá Databricks: ejecutá python instalar.py y volvé a abrir cuycli.",
       duration: 3000,
     })
-    if (sync.data.provider.length === 0) {
-      dialog.replace(() => <DialogProviderConnect />)
-    }
+
   }
 
   function dismissEditorContext() {
@@ -1447,7 +1445,7 @@ export function Prompt(props: PromptProps) {
                   {(agent) => (
                     <>
                       <text fg={fadeColor(highlight(), agentMetaAlpha())}>
-                        {store.mode === "shell" ? "Shell" : Locale.titlecase(agent().name)}
+                        {store.mode === "shell" ? "Shell" : (agent().name === "plan" ? "Planificar" : agent().name === "build" ? "Editar" : Locale.titlecase(agent().name))}
                       </text>
                       <Show when={store.mode === "normal" && local.permission.mode === "auto"}>
                         <text fg={fadeColor(theme.textMuted, agentMetaAlpha())}>auto</text>
@@ -1535,8 +1533,8 @@ export function Prompt(props: PromptProps) {
                       const message = createMemo(() => {
                         const r = retry()
                         if (!r) return
-                        if (r.message.includes("exceeded your current quota") && r.message.includes("gemini"))
-                          return "gemini is way too hot right now"
+                        const hint = recovery(r.message)
+                        if (hint) return hint.title
                         if (r.message.length > 80) return r.message.slice(0, 80) + "…"
                         return r.message
                       })
@@ -1560,7 +1558,7 @@ export function Prompt(props: PromptProps) {
                         const r = retry()
                         if (!r) return
                         if (isTruncated()) {
-                          void DialogAlert.show(dialog, "Retry Error", r.message)
+                          void DialogAlert.show(dialog, recovery(r.message)?.title ?? "No se pudo completar la respuesta", recovery(r.message)?.message ?? r.message)
                         }
                       }
 

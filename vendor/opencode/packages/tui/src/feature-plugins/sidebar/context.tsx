@@ -37,11 +37,11 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
   return (
     <box>
       <text fg={theme().text}>
-        <b>Context</b>
+        <b>Uso de esta conversación</b>
       </text>
       <text fg={theme().textMuted}>{state().tokens.toLocaleString()} tokens</text>
-      <text fg={theme().textMuted}>{state().percent ?? 0}% used</text>
-      <text fg={theme().textMuted}>{money.format(cost())} spent</text>
+      <text fg={theme().textMuted}>{state().percent === null ? "Contexto: sin medición todavía" : `${state().percent}% del contexto utilizado`}</text>
+      <text fg={theme().textMuted}>{money.format(cost())} · costo estimado</text>
     </box>
   )
 }

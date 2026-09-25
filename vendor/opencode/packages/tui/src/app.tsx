@@ -26,7 +26,6 @@ import {
 } from "solid-js"
 import { TuiPathsProvider, TuiStartupProvider, TuiTerminalEnvironmentProvider, useTuiStartup } from "./context/runtime"
 import { DialogProvider, useDialog } from "./ui/dialog"
-import { DialogProvider as DialogProviderList } from "./component/dialog-provider"
 import { ErrorComponent } from "./component/error-component"
 import { PluginRouteMissing } from "./component/plugin-route-missing"
 import { ProjectProvider, useProject } from "./context/project"
@@ -539,16 +538,6 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
     })
   })
 
-  createEffect(
-    on(
-      () => sync.status === "complete" && sync.data.provider.length === 0,
-      (isEmpty, wasEmpty) => {
-        // only trigger when we transition into an empty-provider state
-        if (!isEmpty || wasEmpty) return
-        dialog.replace(() => <DialogProviderList />)
-      },
-    ),
-  )
 
   const connected = useConnected()
   const currentWorktreeWorkspace = createMemo(() => {
@@ -562,7 +551,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
     [
       {
         name: COMMAND_PALETTE_COMMAND,
-        title: "Show command palette",
+        title: "Ver acciones disponibles",
         category: "System",
         hidden: true,
         run: () => {
@@ -571,7 +560,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "session.list",
-        title: "Switch session",
+        title: "Abrir una conversación",
         category: "Session",
         suggested: sync.data.session.length > 0,
         slashName: "sessions",
@@ -582,7 +571,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "session.new",
-        title: "New session",
+        title: "Nueva conversación",
         suggested: route.data.type === "session",
         category: "Session",
         slashName: "new",
@@ -630,7 +619,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       })),
       {
         name: "model.list",
-        title: "Switch model",
+        title: "Cambiar modelo",
         suggested: true,
         category: "Agent",
         slashName: "models",
@@ -678,7 +667,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "agent.list",
-        title: "Switch agent",
+        title: "Elegir modo de trabajo",
         category: "Agent",
         slashName: "agents",
         run: () => {
@@ -739,11 +728,11 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "provider.connect",
-        title: "Connect provider",
+        title: "Configurar Databricks",
         suggested: !connected(),
         slashName: "connect",
         run: () => {
-          dialog.replace(() => <DialogProviderList />)
+          void DialogAlert.show(dialog, "Configurar Databricks", "Ejecutá python instalar.py desde la carpeta de cuycli. El instalador configura tu workspace y verifica los modelos. Después volvé a abrir cuycli. No pegues tokens en el chat.")
         },
         category: "Provider",
       },
@@ -764,7 +753,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         : []),
       {
         name: "opencode.status",
-        title: "View status",
+        title: "Ver estado de la herramienta",
         slashName: "status",
         run: () => {
           dialog.replace(() => <DialogStatus />)
@@ -773,7 +762,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "opencode.debug",
-        title: "View debug info",
+        title: "Ver diagnóstico técnico",
         slashName: "debug",
         run: () => {
           dialog.replace(() => <DialogDebug />)
@@ -782,7 +771,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "theme.switch",
-        title: "Switch theme",
+        title: "Cambiar apariencia",
         slashName: "themes",
         run: () => {
           dialog.replace(() => <DialogThemeList />)
@@ -810,7 +799,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "help.show",
-        title: "Help",
+        title: "Ayuda",
         slashName: "help",
         run: () => {
           dialog.replace(() => <DialogHelp />)
@@ -819,7 +808,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "docs.open",
-        title: "Open docs",
+        title: "Abrir documentación",
         run: () => {
           open("https://github.com/luxitoppsai/cuy-cli#readme").catch(() => {})
           dialog.clear()
@@ -828,7 +817,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "app.exit",
-        title: "Exit the app",
+        title: "Salir de cuycli",
         slashName: "exit",
         slashAliases: ["quit", "q"],
         run: () => exit(),

@@ -1,3 +1,4 @@
+import { recovery } from "../../util/cuy"
 import {
   batch,
   createContext,
@@ -435,7 +436,7 @@ export function Session() {
       sessionID,
     })
     const status = sync.data.session_status[sessionID]
-    if (status?.type === "retry") void DialogAlert.show(dialog, "Retry Error", status.message)
+    if (status?.type === "retry") void DialogAlert.show(dialog, recovery(status.message)?.title ?? "No se pudo completar la respuesta", recovery(status.message)?.message ?? status.message)
   }
 
   function moveFirstChild() {
@@ -1542,7 +1543,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           customBorderChars={SplitBorder.customBorderChars}
           borderColor={theme.error}
         >
-          <text fg={theme.textMuted}>{errorMessage(props.message.error)}</text>
+          <text fg={theme.textMuted}>{recovery(errorMessage(props.message.error))?.message ?? errorMessage(props.message.error)}</text>
         </box>
       </Show>
       <Switch>
@@ -2302,7 +2303,7 @@ function Task(props: ToolProps) {
           navigate({ type: "session", sessionID: sessionID()! })
         }
         const status = retry()
-        if (status) void DialogAlert.show(dialog, "Retry Error", status.message)
+        if (status) void DialogAlert.show(dialog, recovery(status.message)?.title ?? "No se pudo completar la respuesta", recovery(status.message)?.message ?? status.message)
       }}
     >
       {content()}

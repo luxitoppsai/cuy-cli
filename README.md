@@ -323,3 +323,16 @@ Windows x64 y macOS ARM64 en `dist-release/v0.3.0/`, junto con sus hashes reales
 Publicar esos archivos en la release `v0.3.0`, copiar su `release.json` a la raíz del
 repositorio y subir los cambios. `--targets` permite preparar otras plataformas.
 El equipo de trabajo clona o actualiza el repositorio y ejecuta `python instalar.py`.
+
+### Inicio guiado y estado de cuycli
+
+- `/empezar` ofrece **Entender el proyecto**, **Revisar un problema** y **Hacer un cambio**.
+  La elección prepara un borrador editable; no envía solicitudes ni ejecuta cambios.
+  Conserva el texto y los archivos que ya estuvieran adjuntos.
+- El inicio muestra workspace, modelo, modo y límite mensual. «Configuración cargada»
+  no significa que se haya comprobado la conexión: eso ocurre al enviar la solicitud.
+- Planificar usa el agente de lectura; Editar mantiene los permisos configurados.
+- La barra lateral distingue costo estimado de la conversación y límite mensual.
+  No presenta un gasto global calculado como si fuera un saldo disponible.
+- Los errores habituales de Databricks incluyen pasos concretos para resolverlos.
+- En terminales pequeñas, el panel inicial se oculta para dejar espacio al mensaje.

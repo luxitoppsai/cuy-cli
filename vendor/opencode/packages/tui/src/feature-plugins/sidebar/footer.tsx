@@ -22,7 +22,7 @@ function View(props: { api: TuiPluginApi; sessionID: string }) {
     const out = abbreviateHome(dir, paths.home)
     const branch = session?.directory === props.api.state.path.directory ? props.api.state.vcs?.branch : undefined
     const text = branch ? out + ":" + branch : out
-    const list = text.split("/")
+    const list = text.split(/[\\/]/)
     return {
       parent: list.slice(0, -1).join("/"),
       name: list.at(-1) ?? "",
@@ -47,19 +47,19 @@ function View(props: { api: TuiPluginApi; sessionID: string }) {
           <box flexGrow={1} gap={1}>
             <box flexDirection="row" justifyContent="space-between">
               <text fg={theme().text}>
-                <b>Getting started</b>
+                <b>Primeros pasos</b>
               </text>
               <text fg={theme().textMuted} onMouseDown={() => props.api.kv.set("dismissed_getting_started", true)}>
                 ✕
               </text>
             </box>
-            <text fg={theme().textMuted}>cuycli uses your Databricks Model Serving endpoints.</text>
+            <text fg={theme().textMuted}>Usá tus modelos de Databricks Model Serving.</text>
             <text fg={theme().textMuted}>
-              Run python instalar.py to configure your workspace and available models.
+              Ejecutá python instalar.py para configurar el workspace y verificar los modelos.
             </text>
             <box flexDirection="row" gap={1} justifyContent="space-between">
-              <text fg={theme().text}>Connect provider</text>
-              <text fg={theme().textMuted}>/connect</text>
+              <text fg={theme().text}>Configurar cuycli</text>
+              <text fg={theme().textMuted}>python instalar.py</text>
             </box>
           </box>
         </box>
@@ -69,10 +69,7 @@ function View(props: { api: TuiPluginApi; sessionID: string }) {
         <span style={{ fg: theme().text }}>{path().name}</span>
       </text>
       <text fg={theme().textMuted}>
-        <span style={{ fg: theme().success }}>•</span> <b>Open</b>
-        <span style={{ fg: theme().text }}>
-          <b>Code</b>
-        </span>{" "}
+        <b>cuycli</b>{" "}
         <span>{props.api.app.version}</span>
       </text>
     </box>

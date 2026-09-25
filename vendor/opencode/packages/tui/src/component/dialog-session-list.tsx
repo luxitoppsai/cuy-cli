@@ -271,7 +271,7 @@ export function DialogSessionList() {
 
   return (
     <DialogSelect
-      title="Sessions"
+      title="Tus conversaciones"
       options={options()}
       skipFilter={true}
       preserveSelection={true}
