@@ -23,3 +23,6 @@ vendor/opencode/packages/*/dist/
 vendor/opencode/packages/*/node_modules/
 certificados-sistema.pem
 bin/
+
+# Binarios preparados para releases
+dist-release/

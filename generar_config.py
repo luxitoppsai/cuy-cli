@@ -616,7 +616,7 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict,
         "$schema": "https://opencode.ai/config.json",
         # El nombre que aparece en las conversaciones. El logo y el nombre del programa
         # están compilados en el binario y no se pueden cambiar sin recompilar.
-        "username": "cuy-cli",
+        "username": "cuycli",
         # Solo los proveedores propios: sin esto, `/models` lista también los que el
         # agente carga por su cuenta (OpenCode Zen y demás), que no se pueden usar acá
         # y solo ensucian la elección.

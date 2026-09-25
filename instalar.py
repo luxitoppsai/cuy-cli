@@ -2,7 +2,7 @@
 
 Hace en orden lo que antes había que hacer a mano y en el orden correcto: verifica
 requisitos, guarda la credencial sin que aparezca en pantalla ni en el historial,
-descubre el workspace, genera la configuración, instala OpenCode y **comprueba que
+descubre el workspace, genera la configuración, instala cuycli y **comprueba que
 responde** antes de decir que terminó.
 
 Uso::
@@ -64,7 +64,7 @@ def verificar_requisitos(necesita_npm: bool = False) -> str | None:
         return npm
     if not npm:
         _error(
-            "Falta Node.js (que trae npm), necesario para OpenCode.\n"
+            "Falta Node.js (que trae npm), necesario para cuycli.\n"
             "    macOS:   brew install node\n"
             "    Windows: winget install OpenJS.NodeJS\n"
             "    Linux:   https://nodejs.org/en/download/package-manager"
@@ -159,7 +159,7 @@ def generar(host: str, token: str, rapido: bool) -> dict:
     if not any(p["models"] for p in config["provider"].values()):
         _error("Ningún endpoint tiene compatibilidad verificada. Revisá conexión y contratos.")
     escribir_json(CONFIG, config)
-    print(f"  ✓ {CONFIG.name} generado")
+    print("  ✓ Configuración de cuycli generada")
     return config
 
 
@@ -192,6 +192,7 @@ def buscar_bun() -> str | None:
 
 
 RELEASE = "https://github.com/luxitoppsai/cuy-cli/releases/download"
+MANIFIESTO = RAIZ / "release.json"
 
 # Nombre del binario publicado para cada plataforma, y dónde se guarda al bajarlo.
 PLATAFORMAS = {
@@ -207,7 +208,7 @@ PLATAFORMAS = {
 def descargar_binario(manifiesto: pathlib.Path) -> pathlib.Path:
     """Baja el binario ya compilado que corresponde a esta máquina.
 
-    Camino opcional: el manifiesto local revisado fija versión y SHA-256 por plataforma.
+    El manifiesto incluido en el repo fija versión y SHA-256 por plataforma.
     El ejecutable anterior se conserva si la descarga o la verificación falla.
 
     :returns: Ruta del binario descargado.
@@ -221,12 +222,14 @@ def descargar_binario(manifiesto: pathlib.Path) -> pathlib.Path:
     if not nombre:
         _error(
             f"No hay binario publicado para {clave[0]} {clave[1]}.\n"
-            f"    Compilalo con:  {PY} instalar.py --compilar"
+            "    Pedí una release para esta plataforma; no se compilará en este equipo."
         )
 
     destino_dir = RAIZ / "bin"
     destino_dir.mkdir(exist_ok=True)
     destino = destino_dir / ("cuy.exe" if ES_WINDOWS else "cuy")
+    if not manifiesto.is_file():
+        _error("Falta release.json. Actualizá el repositorio para obtener el manifiesto de binarios publicados.")
     datos = json.loads(manifiesto.read_text(encoding="utf-8"))
     version = datos.get("version", "")
     import re
@@ -251,14 +254,15 @@ def descargar_binario(manifiesto: pathlib.Path) -> pathlib.Path:
             os.fsync(salida.fileno())
         if digest.hexdigest() != esperado.lower():
             raise ValueError("El SHA-256 no coincide; se conserva el ejecutable anterior.")
-        if not ES_WINDOWS:
+        if ES_WINDOWS:
+            validar_windows(temporal)
+        else:
             temporal.chmod(0o755)
         os.replace(temporal, destino)
     except Exception as e:
         _error(
             f"No se pudo descargar el binario:\n    {url}\n    {e}\n"
-            f"\n    Alternativas:  {PY} instalar.py --compilar   (compilar acá)\n"
-            f"                   {PY} instalar.py --sin-compilar (binario de npm)"
+            "\n    Revisá el acceso a GitHub y actualizá el repositorio. No se compilará automáticamente."
         )
 
     finally:
@@ -322,8 +326,7 @@ def compilar_desde_fuente() -> pathlib.Path:
             "    macOS/Linux: curl -fsSL https://bun.sh/install | bash\n"
             "    Windows:     powershell -c \"irm bun.sh/install.ps1 | iex\"\n"
             "\n"
-            f"    O si no podés instalarlo:  {PY} instalar.py --sin-compilar\n"
-            "    (funciona igual, pero con el logo de OpenCode)"
+            "    También podés instalar una release propia con --binario-manifiesto."
         )
 
     # El fuente viaja dentro de este repo (subtree en vendor/): un `git clone` se lo
@@ -370,10 +373,6 @@ def compilar_desde_fuente() -> pathlib.Path:
             "Tu red intercepta TLS y bun no reconoce el certificado de la empresa\n"
             "    (SELF_SIGNED_CERT_IN_CHAIN al bajar dependencias).\n"
             "\n"
-            "    Salida más simple, funciona ya:\n"
-            f"      {PY} instalar.py --sin-compilar\n"
-            "      (usa npm, que sí tiene el certificado; perdés el logo propio)\n"
-            "\n"
             "    Para compilar igual, apuntá bun al certificado de tu empresa:\n"
             "      Windows:  $env:NODE_EXTRA_CA_CERTS=\"C:\\ruta\\al\\certificado.pem\"\n"
             "      macOS:    export NODE_EXTRA_CA_CERTS=/ruta/al/certificado.pem\n"
@@ -414,25 +413,6 @@ def instalar_plugin() -> None:
             _error(f"Falta el plugin {nombre}; restaurá el checkout.")
     # El lanzador carga los plugins fuente por URL absoluta; no hay copias obsoletas.
     print("  ✓ Plugins locales: presupuesto, auditoría y secretos")
-
-
-def instalar_opencode(npm: str) -> pathlib.Path:
-    """Instala OpenCode local al proyecto, sin tocar el sistema.
-
-    :returns: Ruta del ejecutable.
-    :raises SystemExit: Si la instalación falla.
-    """
-    binario = RAIZ / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"
-    print("  Instalando (puede tardar un par de minutos)...")
-    resultado = subprocess.run(
-        [npm, "ci", "--no-fund", "--no-audit"], cwd=RAIZ, capture_output=True, text=True, shell=ES_WINDOWS
-    )
-    if resultado.returncode != 0 or not binario.exists():
-        _error(f"Falló la instalación:\n{resultado.stderr[-500:]}")
-    if ES_WINDOWS:
-        validar_windows(binario)
-    print("  ✓ OpenCode instalado (local al proyecto)")
-    return binario
 
 
 def verificar(host: str, token: str, config: dict) -> bool:
@@ -505,24 +485,22 @@ def main() -> int:
     origen.add_argument("--compilar", action="store_true",
                         help="Compilar el binario acá en vez de descargarlo (necesita bun)")
     origen.add_argument("--sin-compilar", action="store_true",
-                        help="Usar el binario oficial de npm (sin la marca propia)")
+                        help="Instalar el binario publicado (comportamiento predeterminado)")
     origen.add_argument("--binario-manifiesto", type=pathlib.Path,
                         help="Descargar release fijada por manifiesto local con version y sha256")
     args = parser.parse_args()
 
     if args.reparar_motor:
-        if args.compilar or args.binario_manifiesto:
-            parser.error("--reparar-motor usa el paquete oficial de npm")
-        npm = verificar_requisitos(necesita_npm=True)
-        binario = instalar_opencode(npm)
+        verificar_requisitos(necesita_npm=False)
+        binario = compilar_desde_fuente() if args.compilar else descargar_binario(args.binario_manifiesto or MANIFIESTO)
         escribir_json(RAIZ / "bin" / "seleccion.json", {"path": str(binario.resolve())})
         print("Motor reinstalado para este equipo. Ejecutá .\\cuy.cmd en Windows.")
         return 0
 
-    print("Instalación de cuy-cli")
+    print("Instalación de cuycli")
 
     _paso(1, "Verificando requisitos")
-    npm = verificar_requisitos(necesita_npm=not args.compilar and not args.binario_manifiesto)
+    verificar_requisitos(necesita_npm=False)
 
     _paso(2, "Conexión al workspace")
     host = resolver_host(args.host)
@@ -534,10 +512,8 @@ def main() -> int:
     _paso(4, "Instalando el agente")
     if args.compilar:
         binario = compilar_desde_fuente()
-    elif args.binario_manifiesto:
-        binario = descargar_binario(args.binario_manifiesto)
     else:
-        binario = instalar_opencode(npm)
+        binario = descargar_binario(args.binario_manifiesto or MANIFIESTO)
     escribir_json(RAIZ / "bin" / "seleccion.json", {"path": str(binario.resolve())})
     instalar_plugin()
 
@@ -550,28 +526,13 @@ def main() -> int:
         return 1
 
     lanzador = "cuy.cmd" if ES_WINDOWS else "./cuy"
-    # Se pregunta al lanzador cuál usará de verdad, en vez de informar lo que eligió
-    # el instalador: si ya se compiló antes, el lanzador prefiere el binario propio y
-    # decir otra cosa sería mentir.
-    import cuy
-    # La marca propia la traen tanto el binario descargado como el compilado acá; el
-    # único sin marca es el de npm, que vive en node_modules.
-    en_uso = str(cuy.buscar_binario() or binario)
-    propio = "node_modules" not in en_uso
     print("\n" + "─" * 60)
     print("Instalación sin verificar. Para probar:\n" if args.sin_verificar else "Listo. Para empezar:\n")
     print(f"  {lanzador}\n")
-    # Decirlo explícito evita la confusión más común: creer que se compiló la marca
-    # propia cuando en realidad se usó el binario de npm.
-    if propio:
-        origen = "compilado acá" if "vendor" in en_uso else "descargado de la release"
-        print(f"  Marca         : cuy-cli ({origen})")
-    else:
-        print("  Marca         : OpenCode (binario de npm)")
-        print(f"                  Para tener la tuya: {PY} instalar.py --compilar")
+    print("  Marca            : cuycli")
     print(f"  Modelo principal : {config.get('model', '').split('/', 1)[-1]}")
     print(f"  Modelo auxiliar  : {config.get('small_model', '').split('/', 1)[-1]}")
-    print("\nSi los modelos elegidos no son los que preferís, editá opencode.json.")
+    print("\nPodés elegir otro modelo disponible con /models dentro de cuycli.")
     print("Al cambiar de workspace, volvé a correr este script.")
     return 0
 

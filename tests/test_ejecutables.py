@@ -38,8 +38,37 @@ class EjecutablesTests(unittest.TestCase):
             self.assertIsNone(cuy.buscar_binario())
 
     def test_reparacion_no_requiere_databricks(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(instalar, 'RAIZ', Path(tmp)), patch('sys.argv', ['instalar.py', '--reparar-motor']), patch.object(instalar, 'verificar_requisitos', return_value='npm'), patch.object(instalar, 'instalar_opencode', return_value=Path(tmp) / 'motor.exe'), patch.object(instalar, 'resolver_credencial') as token, patch.object(instalar, 'generar') as generar:
+        with tempfile.TemporaryDirectory() as tmp, patch.object(instalar, 'RAIZ', Path(tmp)), patch('sys.argv', ['instalar.py', '--reparar-motor']), patch.object(instalar, 'verificar_requisitos', return_value='npm'), patch.object(instalar, 'descargar_binario', return_value=Path(tmp) / 'motor.exe'), patch.object(instalar, 'resolver_credencial') as token, patch.object(instalar, 'generar') as generar:
             self.assertEqual(instalar.main(), 0)
             token.assert_not_called()
             generar.assert_not_called()
             self.assertTrue((Path(tmp) / 'bin/seleccion.json').exists())
+
+    def test_rechaza_seleccion_npm_sin_marca(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp, patch.object(cuy, 'RAIZ', Path(tmp)):
+            raiz = Path(tmp)
+            (raiz / 'bin').mkdir()
+            (raiz / 'bin/seleccion.json').write_text(json.dumps({
+                'path': str(raiz / 'node_modules/opencode-ai/bin/opencode.exe')}))
+            with self.assertRaisesRegex(ValueError, 'marca cuycli'):
+                cuy.buscar_binario()
+
+    def test_instalacion_predeterminada_descarga_sin_compilar(self):
+        from contextlib import ExitStack
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            stack.enter_context(patch.object(instalar, 'RAIZ', Path(tmp)))
+            stack.enter_context(patch('sys.argv', ['instalar.py']))
+            for nombre, valor in {
+                'verificar_requisitos': None, 'resolver_host': 'https://workspace.example',
+                'resolver_credencial': 'ficticio', 'generar': {'model': 'cuy/modelo'},
+                'descargar_binario': Path(tmp) / 'cuy', 'instalar_plugin': None,
+                'verificar': True,
+            }.items():
+                doble = stack.enter_context(patch.object(instalar, nombre, return_value=valor))
+                if nombre == 'descargar_binario':
+                    descargar = doble
+            compilar = stack.enter_context(patch.object(instalar, 'compilar_desde_fuente'))
+            self.assertEqual(instalar.main(), 0)
+            descargar.assert_called_once_with(instalar.MANIFIESTO)
+            compilar.assert_not_called()

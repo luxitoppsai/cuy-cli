@@ -1,0 +1,7 @@
+{
+  "version": "v0.3.0",
+  "sha256": {
+    "cuy-windows-x64.exe": "e50232498cafbee6bf8e685cb492188a3d7820ef626f3051a3b321ac8c1a6351",
+    "cuy-darwin-arm64": "12a012cdb94675a89a422e40f949b4ad607c099c5b7813886a1914bf1cc17f52"
+  }
+}

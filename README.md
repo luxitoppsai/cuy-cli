@@ -129,9 +129,11 @@ inspeccionar los estados sin ejecutar tareas.
 
 ## Origen y actualización del motor
 
-- **Predeterminado:** paquete oficial fijado a `opencode-ai@1.18.32`, con marca OpenCode.
-- `python3 instalar.py --compilar`: compila el subtree `vendor/opencode` con Bun y lockfile
-  congelado. Requiere descargar las dependencias del build; no hace falta para usar Cuy.
+- **Predeterminado:** descarga el binario de **cuycli** publicado para tu sistema,
+  fijado por `release.json`, y verifica su SHA-256 antes de instalarlo.
+- En la computadora de trabajo solo hace falta Python: **no Bun, npm ni compilación**.
+- `--reparar-motor` vuelve a descargar el binario sin consultar Databricks.
+- `--compilar` es una opción explícita para desarrollo, en el equipo que tiene Bun.
 - `python3 instalar.py --binario-manifiesto release.json`: descarga una release propia
   fijada por un manifiesto local revisado. Exige `version` y un mapa `sha256` por nombre
   de artefacto (`cuy-darwin-arm64`, `cuy-windows-x64.exe`, etc.). No acepta `latest`.
@@ -304,9 +306,20 @@ python instalar.py --reparar-motor
 .\cuy.cmd
 ```
 
-La reparación requiere npm y acceso a su registro, pero no consulta Databricks ni
-modifica el token o la configuración de modelos. Instala el paquete fijado en el
-proyecto y actualiza el ejecutable seleccionado. No copies `node_modules` ni los
+La reparación requiere Python y acceso a la release de GitHub, pero no consulta Databricks ni
+modifica el token o la configuración de modelos. Descarga el motor con la marca cuycli y actualiza el ejecutable seleccionado. No copies `node_modules` ni los
 binarios compilados de macOS/Linux a Windows. El lanzador valida el formato Windows
 antes de intentar ejecutar el agente; esa validación no sustituye una prueba en la
 versión y arquitectura de Windows de destino.
+
+### Preparar una release desde el equipo de desarrollo
+
+```sh
+python3 scripts/preparar_release.py 0.3.0
+```
+
+Este paso usa Bun **solo en el equipo de desarrollo** y prepara los ejecutables de
+Windows x64 y macOS ARM64 en `dist-release/v0.3.0/`, junto con sus hashes reales.
+Publicar esos archivos en la release `v0.3.0`, copiar su `release.json` a la raíz del
+repositorio y subir los cambios. `--targets` permite preparar otras plataformas.
+El equipo de trabajo clona o actualiza el repositorio y ejecuta `python instalar.py`.

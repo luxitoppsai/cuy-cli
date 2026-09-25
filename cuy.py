@@ -1,4 +1,4 @@
-"""Lanza OpenCode en modo blindado, en cualquier sistema.
+"""Lanza cuycli en modo blindado, en cualquier sistema.
 
 La lógica vive acá y no en un script de shell porque el destino de este proyecto es una
 máquina **Windows**, donde un `.sh` no se ejecuta. Python ya es requisito del instalador,
@@ -66,6 +66,8 @@ def buscar_binario() -> pathlib.Path | None:
     seleccion = RAIZ / "bin" / "seleccion.json"
     if seleccion.exists():
         elegido = pathlib.Path(json.loads(seleccion.read_text(encoding="utf-8"))["path"])
+        if "node_modules" in elegido.parts:
+            raise ValueError("El motor instalado no tiene la marca cuycli; ejecutá python instalar.py --reparar-motor.")
         if not elegido.is_file():
             raise ValueError("El ejecutable seleccionado ya no existe; repetí la instalación.")
         return validar_windows(elegido) if ES_WINDOWS else elegido
@@ -80,13 +82,7 @@ def buscar_binario() -> pathlib.Path | None:
                   and p.parent.parent.name.startswith("opencode-windows-")]
     if propio:
         return validar_windows(propio[0]) if ES_WINDOWS else propio[0]
-    # 3) El oficial de npm, sin la marca propia.
-    base = RAIZ / "node_modules" / ".bin"
-    candidatos = [RAIZ / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"]
-    if not ES_WINDOWS:
-        candidatos.append(base / "opencode")
-    encontrado = next((c for c in candidatos if c.is_file()), None)
-    return validar_windows(encontrado) if ES_WINDOWS and encontrado else encontrado
+    return None
 
 
 def entorno_agente() -> dict:
@@ -109,6 +105,7 @@ def entorno_agente() -> dict:
     agentes["explore"]["mode"] = "subagent"
     agentes["scout"] = {"disable": True}
     agentes.setdefault("build", {})["steps"] = 30
+    config["username"] = "cuycli"
     config["share"] = "disabled"
     config["enabled_providers"] = list(config["provider"])
     config["plugin"] = [(RAIZ / "plugin" / f"{nombre}.js").as_uri()
@@ -123,6 +120,9 @@ def entorno_agente() -> dict:
 
 
 def main() -> int:
+    if sys.argv[1:2] == ["upgrade"]:
+        print("Para actualizar cuycli, actualizá el repositorio y ejecutá python instalar.py --reparar-motor.")
+        return 1
     cargar_env()
     if sys.argv[1:2] == ["tarea"]:
         from tareas import main as tarea
@@ -146,7 +146,7 @@ def main() -> int:
         print(f"No se pudo seleccionar el ejecutable: {exc}", file=sys.stderr)
         return 1
     if not binario:
-        print("OpenCode no está instalado. Corré:")
+        print("cuycli no está instalado. Corré:")
         print(f"    {'python' if ES_WINDOWS else 'python3'} instalar.py")
         return 1
 

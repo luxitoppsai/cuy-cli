@@ -113,7 +113,7 @@ const allTargets: {
   },
 ]
 
-const targets = singleFlag
+const nativeTargets = singleFlag
   ? allTargets.filter((item) => {
       if (item.os !== process.platform || item.arch !== process.arch) {
         return false
@@ -133,6 +133,15 @@ const targets = singleFlag
       return true
     })
   : allTargets
+
+// Build one release target without compiling every supported operating system.
+const requestedTarget = process.argv.find((arg) => arg.startsWith("--target="))?.slice(9)
+const targets = requestedTarget
+  ? allTargets.filter((item) =>
+      [item.os === "win32" ? "windows" : item.os, item.arch,
+       item.avx2 === false ? "baseline" : undefined, item.abi].filter(Boolean).join("-") === requestedTarget)
+  : nativeTargets
+if (!targets.length) throw new Error(`Unknown build target: ${requestedTarget}`)
 
 await $`rm -rf dist`
 
