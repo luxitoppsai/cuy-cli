@@ -48,8 +48,10 @@ def leer(ruta: pathlib.Path, dias: int, usuario: str | None) -> list[dict]:
         try:
             entrada = json.loads(linea)
             cuando = datetime.fromisoformat(entrada["cuando"].replace("Z", "+00:00"))
-        except (json.JSONDecodeError, KeyError, ValueError):
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError):
             continue
+        if cuando.tzinfo is None:
+            cuando = cuando.replace(tzinfo=timezone.utc)
         if desde and cuando < desde:
             continue
         if usuario and entrada.get("usuario") != usuario:
@@ -59,29 +61,47 @@ def leer(ruta: pathlib.Path, dias: int, usuario: str | None) -> list[dict]:
     return sorted(entradas, key=lambda e: e["_cuando"])
 
 
+def deduplicar(entradas: list[dict]) -> list[dict]:
+    vistos = set()
+    resultado = []
+    for entrada in entradas:
+        if entrada.get("evento") == "herramienta.resultado":
+            clave = (entrada.get("sesion"), entrada.get("llamada"), entrada.get("estado"))
+            if clave in vistos:
+                continue
+            vistos.add(clave)
+        resultado.append(entrada)
+    return resultado
+
+
 def resumir(entradas: list[dict]) -> None:
     """Imprime el panorama general: quién, cuánto y qué se bloqueó."""
     if not entradas:
         print("Sin actividad registrada en el período.")
         return
 
-    sesiones = {e["sesion"] for e in entradas if "sesion" in e}
-    por_usuario = collections.Counter(
-        e.get("usuario", "?") for e in entradas if e.get("evento") == "sesion.inicio"
-    )
+    entradas = deduplicar(entradas)
+    sesiones = {e["sesion"] for e in entradas if e.get("sesion")}
+    sesiones_por_usuario = collections.defaultdict(set)
+    for entrada in entradas:
+        if entrada.get("sesion"):
+            sesiones_por_usuario[entrada.get("usuario", "?")].add(entrada["sesion"])
+    por_usuario = collections.Counter({u: len(s) for u, s in sesiones_por_usuario.items()})
     herramientas = collections.Counter(
-        e.get("herramienta") for e in entradas if e.get("evento") == "herramienta"
+        e.get("herramienta") for e in entradas if e.get("evento") == "herramienta.resultado" and e.get("estado") == "completed"
     )
     permisos = [e for e in entradas if e.get("evento") == "permiso.consultado"]
+    intentos = sum(e.get("evento") == "herramienta.intento" for e in entradas)
+    fallos = sum(e.get("evento") == "herramienta.resultado" and e.get("estado") == "error" for e in entradas)
 
     primera, ultima = entradas[0]["_cuando"], entradas[-1]["_cuando"]
     print(f"Período: {primera:%Y-%m-%d %H:%M} → {ultima:%Y-%m-%d %H:%M}")
-    print(f"Sesiones: {len(sesiones)}\n")
+    print(f"Sesiones: {len(sesiones)} | Intentos: {intentos} | Resultados con error: {fallos}\n")
 
     print("Por persona:")
     for usuario, cuantas in por_usuario.most_common():
         acciones = sum(
-            1 for e in entradas if e.get("usuario") == usuario and e.get("evento") == "herramienta"
+            1 for e in entradas if e.get("usuario") == usuario and e.get("evento") == "herramienta.resultado" and e.get("estado") == "completed"
         )
         print(f"  {usuario:20s} {cuantas:>3} sesiones, {acciones:>4} acciones")
 
@@ -102,7 +122,7 @@ def listar(entradas: list[dict], clave: str, titulo: str) -> None:
     :param clave: Campo a mostrar (``comando`` o ``archivo``).
     :param titulo: Encabezado.
     """
-    filas = [e for e in entradas if e.get("evento") == "herramienta" and clave in e]
+    filas = [e for e in deduplicar(entradas) if e.get("evento") == "herramienta.resultado" and e.get("estado") == "completed" and clave in e]
     if not filas:
         print(f"Sin {titulo.lower()} en el período.")
         return
@@ -119,6 +139,8 @@ def main() -> int:
     parser.add_argument("--archivos", action="store_true", help="Listar archivos modificados")
     parser.add_argument("--archivo", type=pathlib.Path, default=DESTINO, help="Registro a leer")
     args = parser.parse_args()
+    if args.dias < 0:
+        parser.error("--dias debe ser no negativo")
 
     entradas = leer(args.archivo, args.dias, args.usuario)
     if not args.archivo.exists():

@@ -92,7 +92,8 @@ export const PATRONES = [
  * pegado a mano, que es el caso que interesa.
  */
 const ASIGNACION =
-  /\b(password|passwd|secret|client[_-]?secret|api[_-]?key|access[_-]?key|auth[_-]?token|private[_-]?key)\b(\s*[:=]\s*)(["'`])([^"'`\n]{6,})\3/gi;
+  /(\b(?:password|passwd|secret|client[_-]?secret|api[_-]?key|access[_-]?key|auth[_-]?token|private[_-]?key|token)\b["']?\s*[:=]\s*)(["'`])((?:\\.|(?!\2)[^\\\n])+)\2/gi;
+
 
 /**
  * Reemplaza los secretos de un texto, conservando la forma del resto.
@@ -115,11 +116,17 @@ export function redactar(texto) {
     });
   }
 
-  salida = salida.replace(ASIGNACION, (entero, clave, separador, comilla, valor) => {
+  salida = salida.replace(ASIGNACION, (entero, prefijo, comilla, valor) => {
     // Ya redactado por un patrón anterior, o un placeholder de la propia config.
     if (valor.startsWith("[REDACTADO:") || esMarcador(valor)) return entero;
     anotar("asignacion");
-    return `${clave}${separador}${comilla}[REDACTADO:asignacion]${comilla}`;
+    return `${prefijo}${comilla}[REDACTADO:asignacion]${comilla}`;
+  });
+
+  salida = salida.replace(/\b(Bearer|Basic) ([A-Za-z0-9+/_.=~-]{8,})/gi, (entero, esquema, valor) => {
+    if (esMarcador(valor)) return entero;
+    anotar("autorizacion");
+    return `${esquema} [REDACTADO:autorizacion]`;
   });
 
   const hallazgos = [...cuenta].map(([tipo, cantidad]) => ({ tipo, cantidad }));
@@ -182,4 +189,20 @@ export function mensajeDeRechazo(ruta) {
     `y su contenido saldría hacia el modelo. Si necesitás saber qué variables define, ` +
     `pedí las claves sin los valores.`
   );
+}
+
+/** Sanea campos estructurados antes de persistir; nunca serializa primero. */
+export function sanearRegistro(valor) {
+  if (typeof valor === "string") {
+    return redactar(valor).texto.replace(
+      /((?:[?&]|--|\b)(?:password|passwd|token|api[_-]?key|secret|client[_-]?secret)(?:=|\s+))([^\s&"']+)/gi,
+      (entero, prefijo, secreto) => secreto.startsWith("[REDACTADO:") || esMarcador(secreto)
+        ? entero : `${prefijo}[REDACTADO:argumento]`,
+    ).replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, "$1[REDACTADO:credenciales]@");
+  }
+  if (Array.isArray(valor)) return valor.map(sanearRegistro);
+  if (valor && typeof valor === "object") {
+    return Object.fromEntries(Object.entries(valor).map(([k, v]) => [k, sanearRegistro(v)]));
+  }
+  return valor;
 }

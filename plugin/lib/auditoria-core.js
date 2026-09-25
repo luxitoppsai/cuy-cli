@@ -6,6 +6,8 @@
  */
 
 import fs from "node:fs";
+import { conBloqueo, escribirAtomico } from "./archivos.js";
+import { sanearRegistro } from "./secretos-core.js";
 import os from "node:os";
 import path from "node:path";
 
@@ -14,9 +16,10 @@ const DESTINO =
   path.join(os.homedir(), ".local", "share", "cuy-cli", "auditoria.jsonl");
 const APAGADO = process.env.CUY_AUDITORIA_OFF === "1";
 const RETENCION_DIAS = Number(process.env.CUY_RETENCION_DIAS ?? 90);
+if (!Number.isFinite(RETENCION_DIAS) || RETENCION_DIAS < 0) throw new Error("CUY_RETENCION_DIAS debe ser finito y no negativo");
 
 /** Herramientas cuyo uso importa registrar: las que cambian algo o salen del proyecto. */
-export const RELEVANTES = new Set(["bash", "edit", "write", "patch", "webfetch", "websearch"]);
+export const RELEVANTES = new Set(["bash", "edit", "write", "patch", "apply_patch", "webfetch", "websearch"]);
 
 /**
  * Identifica de quién es la actividad.
@@ -50,15 +53,16 @@ export function resumirLlamada(herramienta, argumentos = {}) {
   const a = argumentos || {};
   switch (herramienta) {
     case "bash":
-      return { comando: String(a.command ?? a.cmd ?? "").slice(0, 500) };
+      return { comando: sanearRegistro(String(a.command ?? a.cmd ?? "")).slice(0, 500) };
     case "edit":
     case "write":
     case "patch":
+    case "apply_patch":
       return { archivo: String(a.filePath ?? a.path ?? a.file ?? "") };
     case "webfetch":
-      return { url: String(a.url ?? "").slice(0, 300) };
+      return { url: sanearRegistro(String(a.url ?? "")).slice(0, 300) };
     case "websearch":
-      return { consulta: String(a.query ?? "").slice(0, 200) };
+      return { consulta: sanearRegistro(String(a.query ?? "")).slice(0, 200) };
     default:
       return {};
   }
@@ -90,23 +94,22 @@ export function aplicarRetencion(lineas, dias = RETENCION_DIAS, ahora = Date.now
 export function anotar(entrada) {
   if (APAGADO) return;
   try {
-    fs.mkdirSync(path.dirname(DESTINO), { recursive: true });
-    fs.appendFileSync(DESTINO, JSON.stringify(entrada) + "\n");
+    conBloqueo(DESTINO, () => fs.appendFileSync(DESTINO, JSON.stringify(sanearRegistro(entrada)) + "\n", { mode: 0o600 }));
   } catch {
-    // Registrar es importante, pero no al punto de romperle la sesión a alguien.
+    console.error("CUY: no se pudo escribir la auditoría; revisá permisos y espacio.");
   }
 }
 
 export function limpiarSiHaceFalta() {
   if (APAGADO || !RETENCION_DIAS || RETENCION_DIAS <= 0) return;
   try {
-    if (!fs.existsSync(DESTINO)) return;
-    const lineas = fs.readFileSync(DESTINO, "utf8").split("\n").filter(Boolean);
-    const conservadas = aplicarRetencion(lineas);
-    if (conservadas.length !== lineas.length) {
-      fs.writeFileSync(DESTINO, conservadas.join("\n") + (conservadas.length ? "\n" : ""));
-    }
+    conBloqueo(DESTINO, () => {
+      if (!fs.existsSync(DESTINO)) return;
+      const lineas = fs.readFileSync(DESTINO, "utf8").split("\n").filter(Boolean);
+      const conservadas = aplicarRetencion(lineas);
+      if (conservadas.length !== lineas.length) escribirAtomico(DESTINO, conservadas.join("\n") + (conservadas.length ? "\n" : ""));
+    });
   } catch {
-    // idem
+    console.error("CUY: no se pudo aplicar la retención de auditoría.");
   }
 }

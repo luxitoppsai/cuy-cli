@@ -15,9 +15,16 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { conBloqueo, escribirAtomico } from "./archivos.js";
 
-export const LIMITE_USD = Number(process.env.CUY_LIMITE_USD ?? 10);
-export const AVISO = Number(process.env.CUY_AVISO_PORCENTAJE ?? 80);
+function numero(nombre, defecto) {
+  const raw = process.env[nombre] ?? String(defecto);
+  const valor = raw.trim() ? Number(raw) : NaN;
+  if (!Number.isFinite(valor) || valor < 0) throw new Error(`${nombre} debe ser finito y no negativo`);
+  return valor;
+}
+export const LIMITE_USD = numero("CUY_LIMITE_USD", 10);
+export const AVISO = numero("CUY_AVISO_PORCENTAJE", 80);
 
 const CARPETA = path.join(os.homedir(), ".local", "share", "cuy-cli");
 export const GASTO_ARCHIVO = process.env.CUY_GASTO ?? path.join(CARPETA, "gasto.json");
@@ -54,37 +61,48 @@ export function mesActual(fecha = new Date()) {
  *
  * @returns {{mes: string, usd: number}}
  */
-export function leerGasto(archivo = GASTO_ARCHIVO, mes = mesActual()) {
-  try {
-    const datos = JSON.parse(fs.readFileSync(archivo, "utf8"));
-    return { mes, usd: Number(datos[mes]) || 0 };
-  } catch {
-    return { mes, usd: 0 };
-  }
-}
-
-/**
- * Suma gasto al mes en curso y devuelve el nuevo acumulado.
- *
- * Conserva los meses anteriores: sirven para revisar consumo histórico.
- *
- * @returns {number} Acumulado del mes tras sumar.
- */
-export function sumarGasto(usd, archivo = GASTO_ARCHIVO, mes = mesActual()) {
-  let datos = {};
+function leerDatos(archivo) {
+  let datos;
   try {
     datos = JSON.parse(fs.readFileSync(archivo, "utf8"));
-  } catch {
-    datos = {};
+  } catch (error) {
+    if (error.code === "ENOENT") return {};
+    throw new Error(`No se puede leer el presupuesto ${archivo}; no se asumirá gasto cero.`, { cause: error });
   }
-  datos[mes] = (Number(datos[mes]) || 0) + usd;
-  try {
-    fs.mkdirSync(path.dirname(archivo), { recursive: true });
-    fs.writeFileSync(archivo, JSON.stringify(datos, null, 2));
-  } catch {
-    // Contabilizar es importante, pero no al punto de romper la sesión.
+  if (!datos || typeof datos !== "object" || Array.isArray(datos)) throw new Error("Presupuesto inválido");
+  if (datos._eventos !== undefined && (!datos._eventos || typeof datos._eventos !== "object"
+      || Array.isArray(datos._eventos) || Object.values(datos._eventos).some(ids => !Array.isArray(ids)
+        || ids.some(id => typeof id !== "string")))) throw new Error("Índice contable corrupto");
+  for (const [mes, usd] of Object.entries(datos)) {
+    if (mes === "_eventos") continue;
+    if (!/^\d{4}-\d{2}$/.test(mes) || typeof usd !== "number" || !Number.isFinite(usd) || usd < 0) {
+      throw new Error("Presupuesto corrupto: se detiene la inferencia hasta repararlo.");
+    }
   }
-  return datos[mes];
+  return datos;
+}
+
+export function leerGasto(archivo = GASTO_ARCHIVO, mes = mesActual()) {
+  return { mes, usd: leerDatos(archivo)[mes] ?? 0 };
+}
+
+/** Actualización entre procesos con exclusión mutua y reemplazo atómico.
+ * Un lock huérfano produce un error; nunca se borra un lock de otro proceso a ciegas.
+ */
+export function sumarGasto(usd, archivo = GASTO_ARCHIVO, mes = mesActual(), eventoID) {
+  if (!Number.isFinite(usd) || usd < 0) throw new Error("Costo inválido");
+  return conBloqueo(archivo, () => {
+    const datos = leerDatos(archivo);
+    const ids = datos._eventos?.[mes] ?? [];
+    if (eventoID && ids.includes(eventoID)) return datos[mes] ?? 0;
+    datos[mes] = (datos[mes] ?? 0) + usd;
+    if (!Number.isFinite(datos[mes])) throw new Error("Acumulado fuera de rango");
+    if (eventoID) {
+      datos._eventos = { ...datos._eventos, [mes]: [...ids, eventoID] };
+    }
+    escribirAtomico(archivo, JSON.stringify(datos, null, 2));
+    return datos[mes];
+  });
 }
 
 /**
@@ -96,7 +114,10 @@ export function sumarGasto(usd, archivo = GASTO_ARCHIVO, mes = mesActual()) {
  * @returns {{estado: "ok"|"aviso"|"excedido", porcentaje: number}}
  */
 export function evaluar(usd, limite = LIMITE_USD, avisoPorcentaje = AVISO) {
-  if (!limite || limite <= 0) return { estado: "ok", porcentaje: 0 };
+  if (![usd, limite, avisoPorcentaje].every(Number.isFinite) || usd < 0 || limite < 0) {
+    throw new Error("Presupuesto o límite inválido");
+  }
+  if (limite === 0) return { estado: "ok", porcentaje: 0 };
   const porcentaje = Math.round((usd / limite) * 100);
   if (usd >= limite) return { estado: "excedido", porcentaje };
   if (porcentaje >= avisoPorcentaje) return { estado: "aviso", porcentaje };

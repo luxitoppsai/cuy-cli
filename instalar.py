@@ -16,6 +16,8 @@ Sin dependencias: corre con Python pelado.
 
 import argparse
 import getpass
+import hashlib
+import tempfile
 import json
 import os
 import pathlib
@@ -30,6 +32,8 @@ PY = "python" if ES_WINDOWS else "python3"
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import generar_config as gc
+from ejecutables import validar_windows
+from configuracion import escribir_json, validar_host, leer_env, validar_token
 
 RAIZ = pathlib.Path(__file__).resolve().parent
 ENV = RAIZ / ".env"
@@ -65,7 +69,7 @@ def verificar_requisitos(necesita_npm: bool = False) -> str | None:
             "    Windows: winget install OpenJS.NodeJS\n"
             "    Linux:   https://nodejs.org/en/download/package-manager"
         )
-    version = subprocess.run([npm, "--version"], capture_output=True, text=True).stdout.strip()
+    version = subprocess.run([npm, "--version"], capture_output=True, text=True, shell=ES_WINDOWS).stdout.strip()
     print(f"  ✓ Node y npm ({version})")
     print(f"  ✓ Python {sys.version_info.major}.{sys.version_info.minor}")
     return npm
@@ -78,9 +82,11 @@ def resolver_host(indicado: str | None) -> str:
     :returns: URL sin barra final.
     """
     if indicado:
-        return indicado.rstrip("/")
+        return validar_host(indicado)
     if os.environ.get("DATABRICKS_HOST"):
-        return os.environ["DATABRICKS_HOST"].rstrip("/")
+        return validar_host(os.environ["DATABRICKS_HOST"])
+    if leer_env(ENV).get("DATABRICKS_HOST"):
+        return validar_host(leer_env(ENV)["DATABRICKS_HOST"])
     if CONFIG.exists():
         try:
             # Sirve cualquier proveedor: en un workspace solo-Claude el compatible no
@@ -89,51 +95,58 @@ def resolver_host(indicado: str | None) -> str:
             url = next(p["options"]["baseURL"] for p in proveedores)
             previo = url.removesuffix(gc.RUTA_ANTHROPIC).removesuffix("/serving-endpoints")
             respuesta = input(f"  Workspace [{previo}]: ").strip()
-            return (respuesta or previo).rstrip("/")
+            return validar_host(respuesta or previo)
         except (KeyError, StopIteration, json.JSONDecodeError):
             pass
     print("  La URL del workspace es la del navegador, por ejemplo:")
     print("    https://dbc-xxxxxxxx-xxxx.cloud.databricks.com")
     while True:
         respuesta = input("  Workspace: ").strip().rstrip("/")
-        if respuesta.startswith("http"):
-            return respuesta
-        print("    Tiene que empezar con https://")
+        try:
+            return validar_host(respuesta)
+        except ValueError as exc:
+            print(f"    {exc}")
 
 
-def resolver_credencial() -> str:
-    """Obtiene el token, reutilizando el guardado o pidiéndolo sin mostrarlo.
-
-    El token se escribe solo en ``.env`` con permisos restringidos; nunca se imprime
-    ni queda en el historial del shell.
-
-    :returns: El token.
-    """
-    if os.environ.get("DATABRICKS_TOKEN"):
-        print("  ✓ Token tomado del entorno")
-        return os.environ["DATABRICKS_TOKEN"]
-
-    if ENV.exists():
-        for linea in ENV.read_text().splitlines():
-            if linea.startswith("DATABRICKS_TOKEN="):
-                valor = linea.split("=", 1)[1].strip()
-                if valor:
-                    print("  ✓ Token reutilizado de .env")
-                    return valor
-
-    print("  Generá uno en: Settings → Developer → Access tokens")
-    print("  (no se muestra al escribirlo, y se guarda solo en .env)")
-    token = getpass.getpass("  Token: ").strip()
-    if not token:
-        _error("No se ingresó ningún token.")
-
-    ENV.write_text(f"DATABRICKS_TOKEN={token}\n")
+def resolver_credencial(renovar: bool = False) -> str:
+    """Obtiene PAT u OAuth sin mostrarlo; conserva las otras opciones de .env."""
+    if os.environ.get("DATABRICKS_TOKEN") and not renovar:
+        print("  ✓ Token tomado del entorno (tiene prioridad sobre .env)")
+        return validar_token(os.environ["DATABRICKS_TOKEN"])
+    guardado = leer_env(ENV).get("DATABRICKS_TOKEN")
+    if guardado and not renovar:
+        print("  ✓ Token reutilizado de .env")
+        return validar_token(guardado)
+    if renovar and os.environ.get("DATABRICKS_TOKEN"):
+        _error("DATABRICKS_TOKEN está definido en el entorno. Actualizá o eliminá esa variable "
+               "antes de renovar; de lo contrario seguirá ocultando el token de .env.")
+    print("  Ingresá un PAT o access token OAuth del workspace de Databricks.")
+    token = validar_token(getpass.getpass("  Token (oculto): "))
+    lineas = ENV.read_text(encoding="utf-8-sig").splitlines() if ENV.exists() else []
+    lineas = [linea for linea in lineas
+              if "DATABRICKS_TOKEN" not in leer_env_linea(linea)]
+    temporal = None
     try:
-        ENV.chmod(0o600)  # en Windows no aplica, pero no falla
-    except OSError:
-        pass
-    print(f"  ✓ Guardado en {ENV.name} (ignorado por git)")
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=ENV.parent,
+                                         delete=False) as archivo:
+            temporal = pathlib.Path(archivo.name)
+            archivo.write("\n".join(lineas + [f"DATABRICKS_TOKEN={token}"]) + "\n")
+            archivo.flush()
+            os.fsync(archivo.fileno())
+        os.replace(temporal, ENV)
+    finally:
+        if temporal is not None:
+            temporal.unlink(missing_ok=True)
+    print("  ✓ Token guardado en .env")
     return token
+
+
+def leer_env_linea(linea: str) -> set[str]:
+    """Identifica claves para reemplazar también asignaciones con export."""
+    linea = linea.strip()
+    if linea.startswith("export "):
+        linea = linea[7:].lstrip()
+    return {linea.split("=", 1)[0].strip()} if "=" in linea else set()
 
 
 def generar(host: str, token: str, rapido: bool) -> dict:
@@ -142,40 +155,10 @@ def generar(host: str, token: str, rapido: bool) -> dict:
     :returns: La configuración generada.
     :raises SystemExit: Si ningún endpoint resulta usable.
     """
-    os.environ["DATABRICKS_TOKEN"] = token
-    endpoints = gc.listar_endpoints(host, token)
-    if not endpoints:
-        _error("El workspace no tiene endpoints de chat servidos.")
-    print(f"  {len(endpoints)} endpoints de chat encontrados")
-
-    # Claude por su API nativa evita que el razonamiento rompa el contrato OpenAI, y
-    # es la superficie para la que el modelo fue entrenado.
-    claude = [e["name"] for e in endpoints if gc.es_claude(e["name"])]
-    anthropic = gc.detectar_anthropic(host, token, claude)
-    if anthropic:
-        print(f"  ✓ API nativa de Anthropic disponible ({anthropic['auth']})")
-
-    detalles = {}
-    for endpoint in endpoints:
-        nombre = endpoint["name"]
-        limite = gc.SALIDA_POR_DEFECTO if rapido else gc.sondear_limite(host, token, nombre)
-        if anthropic and nombre in anthropic["modelos"]:
-            # Por la vía nativa los bloques son parte del contrato: sondear la forma
-            # descartaría el modelo por algo que ahí no es un problema.
-            detalles[nombre] = {"forma": "nativa", "limite": limite}
-            print(f"    ✓ {nombre} (nativo, salida ≤ {limite})")
-            continue
-        forma = gc.detectar_forma(host, token, nombre)
-        detalles[nombre] = {"forma": forma, "limite": limite}
-        if forma == "bloques":
-            print(f"    - {nombre}: descartado (no respeta el contrato OpenAI)")
-        else:
-            print(f"    ✓ {nombre} (salida ≤ {limite})")
-
-    config = gc.construir_config(host, endpoints, detalles, anthropic)
+    config = gc.descubrir_config(host, token, rapido)
     if not any(p["models"] for p in config["provider"].values()):
-        _error("Ningún endpoint es usable: todos devuelven bloques en vez de texto.")
-    CONFIG.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
+        _error("Ningún endpoint tiene compatibilidad verificada. Revisá conexión y contratos.")
+    escribir_json(CONFIG, config)
     print(f"  ✓ {CONFIG.name} generado")
     return config
 
@@ -208,7 +191,7 @@ def buscar_bun() -> str | None:
     return next((str(c) for c in candidatos if c.exists()), None)
 
 
-RELEASE = "https://github.com/luxitoppsai/cuy-cli/releases/latest/download"
+RELEASE = "https://github.com/luxitoppsai/cuy-cli/releases/download"
 
 # Nombre del binario publicado para cada plataforma, y dónde se guarda al bajarlo.
 PLATAFORMAS = {
@@ -221,13 +204,11 @@ PLATAFORMAS = {
 }
 
 
-def descargar_binario() -> pathlib.Path:
+def descargar_binario(manifiesto: pathlib.Path) -> pathlib.Path:
     """Baja el binario ya compilado que corresponde a esta máquina.
 
-    Es el camino por defecto porque compilar en una máquina corporativa choca con tres
-    obstáculos reales —hace falta bun, ~2 GB de dependencias y que la red no intercepte
-    TLS— y ninguno tiene que ver con usar la herramienta. El binario sale del mismo
-    fuente que viene en `vendor/`, así que se puede reproducir con ``--compilar``.
+    Camino opcional: el manifiesto local revisado fija versión y SHA-256 por plataforma.
+    El ejecutable anterior se conserva si la descarga o la verificación falla.
 
     :returns: Ruta del binario descargado.
     :raises SystemExit: Si no hay binario para esta plataforma o falla la descarga.
@@ -246,12 +227,33 @@ def descargar_binario() -> pathlib.Path:
     destino_dir = RAIZ / "bin"
     destino_dir.mkdir(exist_ok=True)
     destino = destino_dir / ("cuy.exe" if ES_WINDOWS else "cuy")
-    url = f"{RELEASE}/{nombre}"
+    datos = json.loads(manifiesto.read_text(encoding="utf-8"))
+    version = datos.get("version", "")
+    import re
+    if not re.fullmatch(r"v?[0-9]+(?:[.][0-9]+)*(?:-[a-zA-Z0-9.-]+)?", version):
+        _error("El manifiesto debe fijar una versión; no se admite latest.")
+    esperado = datos.get("sha256", {}).get(nombre, "")
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", esperado):
+        _error(f"Falta SHA-256 válido para {nombre} en el manifiesto revisado.")
+    url = f"{RELEASE}/{version}/{nombre}"
+    temporal = None
 
     print(f"  Descargando {nombre}...")
     try:
-        with urllib.request.urlopen(url, timeout=600) as respuesta, open(destino, "wb") as salida:
-            shutil.copyfileobj(respuesta, salida)
+        with tempfile.NamedTemporaryFile(dir=destino_dir, delete=False) as salida:
+            temporal = pathlib.Path(salida.name)
+            digest = hashlib.sha256()
+            with urllib.request.urlopen(url, timeout=600) as respuesta:
+                while bloque := respuesta.read(1024 * 1024):
+                    digest.update(bloque)
+                    salida.write(bloque)
+            salida.flush()
+            os.fsync(salida.fileno())
+        if digest.hexdigest() != esperado.lower():
+            raise ValueError("El SHA-256 no coincide; se conserva el ejecutable anterior.")
+        if not ES_WINDOWS:
+            temporal.chmod(0o755)
+        os.replace(temporal, destino)
     except Exception as e:
         _error(
             f"No se pudo descargar el binario:\n    {url}\n    {e}\n"
@@ -259,8 +261,9 @@ def descargar_binario() -> pathlib.Path:
             f"                   {PY} instalar.py --sin-compilar (binario de npm)"
         )
 
-    if not ES_WINDOWS:
-        destino.chmod(0o755)
+    finally:
+        if temporal is not None:
+            temporal.unlink(missing_ok=True)
     print(f"  ✓ Binario descargado ({destino.stat().st_size // 1024 // 1024} MB)")
     return destino
 
@@ -334,7 +337,7 @@ def compilar_desde_fuente() -> pathlib.Path:
     print(f"  Fuente: {FUENTE.relative_to(RAIZ)}")
 
     print("  Instalando dependencias (son ~2 GB, tarda varios minutos)...")
-    dep = subprocess.run([bun, "install"], cwd=FUENTE, capture_output=True, text=True)
+    dep = subprocess.run([bun, "install", "--frozen-lockfile"], cwd=FUENTE, capture_output=True, text=True)
     if dep.returncode != 0:
         # `bun install` devuelve error si falla el script de instalación de *cualquier*
         # dependencia, incluso una opcional que no usamos. El caso conocido es
@@ -355,7 +358,7 @@ def compilar_desde_fuente() -> pathlib.Path:
         certificados = exportar_certificados_del_sistema()
         if certificados:
             entorno = {**os.environ, "NODE_EXTRA_CA_CERTS": str(certificados)}
-            dep = subprocess.run([bun, "install"], cwd=FUENTE, capture_output=True,
+            dep = subprocess.run([bun, "install", "--frozen-lockfile"], cwd=FUENTE, capture_output=True,
                                  text=True, env=entorno)
             salida = (dep.stderr or "") + (dep.stdout or "")
             os.environ["NODE_EXTRA_CA_CERTS"] = str(certificados)
@@ -387,9 +390,14 @@ def compilar_desde_fuente() -> pathlib.Path:
         cwd=paquete, capture_output=True, text=True, env={**os.environ},
     )
     binarios = sorted((paquete / "dist").glob("*/bin/opencode*")) if (paquete / "dist").exists() else []
+    if ES_WINDOWS:
+        binarios = [p for p in binarios if p.suffix.lower() == ".exe"
+                    and p.parent.parent.name.startswith("opencode-windows-")]
     if build.returncode != 0 or not binarios:
         _error(f"Falló la compilación:\n{(build.stderr or build.stdout)[-600:]}")
 
+    if ES_WINDOWS:
+        validar_windows(binarios[0])
     print(f"  ✓ Binario propio compilado ({binarios[0].stat().st_size // 1024 // 1024} MB)")
     return binarios[0]
 
@@ -397,19 +405,15 @@ def compilar_desde_fuente() -> pathlib.Path:
 def instalar_plugin() -> None:
     """Deja los plugins donde OpenCode los busca.
 
-    Se copia en vez de enlazarse para que siga funcionando si el repo se mueve.
+    El lanzador referencia el fuente por URL absoluta; comprueba que esté completo.
 
     :returns: Nada.
     """
-    destino_dir = RAIZ / ".opencode" / "plugin"
-    if destino_dir.exists():
-        shutil.rmtree(destino_dir)
-    # Se copia el árbol entero: los plugins importan su lógica desde `lib/`, que debe
-    # viajar con ellos o la carga falla y deja la configuración nula.
-    shutil.copytree(RAIZ / "plugin", destino_dir)
-    limite = os.environ.get("CUY_LIMITE_USD", "10")
-    print(f"  ✓ Tope de gasto activo (${limite} al mes, se libera solo al cambiar de mes)")
-    print(f"  ✓ Registro de auditoría activo ({PY} auditar.py para leerlo)")
+    for nombre in ("presupuesto", "auditoria", "secretos"):
+        if not (RAIZ / "plugin" / f"{nombre}.js").is_file():
+            _error(f"Falta el plugin {nombre}; restaurá el checkout.")
+    # El lanzador carga los plugins fuente por URL absoluta; no hay copias obsoletas.
+    print("  ✓ Plugins locales: presupuesto, auditoría y secretos")
 
 
 def instalar_opencode(npm: str) -> pathlib.Path:
@@ -418,17 +422,15 @@ def instalar_opencode(npm: str) -> pathlib.Path:
     :returns: Ruta del ejecutable.
     :raises SystemExit: Si la instalación falla.
     """
-    binario = RAIZ / "node_modules" / ".bin" / "opencode"
-    if binario.exists():
-        print("  ✓ OpenCode ya estaba instalado")
-        return binario
-
+    binario = RAIZ / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"
     print("  Instalando (puede tardar un par de minutos)...")
     resultado = subprocess.run(
-        [npm, "install", "--no-fund", "--no-audit"], cwd=RAIZ, capture_output=True, text=True
+        [npm, "ci", "--no-fund", "--no-audit"], cwd=RAIZ, capture_output=True, text=True, shell=ES_WINDOWS
     )
     if resultado.returncode != 0 or not binario.exists():
         _error(f"Falló la instalación:\n{resultado.stderr[-500:]}")
+    if ES_WINDOWS:
+        validar_windows(binario)
     print("  ✓ OpenCode instalado (local al proyecto)")
     return binario
 
@@ -440,18 +442,52 @@ def verificar(host: str, token: str, config: dict) -> bool:
 
     :returns: ``True`` si el modelo respondió.
     """
-    modelo = config.get("model", "").split("/", 1)[-1]
-    if not modelo:
+    referencia = config.get("model", "")
+    if "/" not in referencia:
         return False
-    codigo, respuesta = gc._pedir(
-        f"{host}/serving-endpoints/{modelo}/invocations",
-        token,
-        {"messages": [{"role": "user", "content": "di: ok"}], "max_tokens": 50},
-        timeout=90,
-    )
+    proveedor_id, modelo = referencia.split("/", 1)
+    proveedor = config["provider"][proveedor_id]
+    cuerpo = {"messages": [{"role": "user", "content": "di: ok"}], "max_tokens": 50}
+    if proveedor["npm"] == "@ai-sdk/anthropic":
+        opciones = proveedor["options"]
+        cabeceras = {"x-api-key": token}
+        if "Authorization" in opciones.get("headers", {}):
+            cabeceras["Authorization"] = f"Bearer {token}"
+        base = opciones["baseURL"].removesuffix(gc.RUTA_ANTHROPIC)
+        codigo, respuesta = gc._pedir_anthropic(base, cabeceras, {**cuerpo, "model": modelo})
+    else:
+        # La TUI consume SSE: una respuesta HTTP 200 sin streaming no prueba
+        # compatibilidad (Claude puede emitir bloques solamente al razonar).
+        codigo, fragmentos = gc._pedir_stream(
+            proveedor["options"]["baseURL"] + "/chat/completions", token,
+            {"model": modelo, "messages": [{"role": "user", "content": gc.PREGUNTA_SONDA}],
+             "max_tokens": min(2000, proveedor["models"][modelo]["limit"]["output"])},
+        )
+        texto = False
+        terminado = False
+        for fragmento in fragmentos:
+            if not isinstance(fragmento, dict) or fragmento.get("error"):
+                print(f"  ✗ {modelo}: error en el streaming")
+                return False
+            for eleccion in fragmento.get("choices", []):
+                contenido = (eleccion.get("delta") or {}).get("content")
+                if contenido is not None and not isinstance(contenido, str):
+                    print(f"  ✗ {modelo}: streaming incompatible (content no es texto)")
+                    return False
+                texto |= bool(contenido)
+                terminado |= eleccion.get("finish_reason") is not None
+        if codigo != 200 or not texto or not terminado:
+            print(f"  ✗ {modelo}: streaming incompleto o inválido (HTTP {codigo})")
+            return False
+        print(f"  ✓ {modelo}: streaming de Databricks verificado")
+        return True
     if codigo != 200:
         detalle = respuesta.get("message") or respuesta.get("raw") or respuesta
         print(f"  ✗ {modelo} no respondió (HTTP {codigo}): {str(detalle)[:200]}")
+        return False
+    contenido = respuesta.get("content") if proveedor["npm"] == "@ai-sdk/anthropic" else respuesta.get("choices")
+    if not contenido:
+        print(f"  ✗ {modelo}: respuesta vacía o contrato inesperado")
         return False
     print(f"  ✓ {modelo} respondió correctamente")
     return True
@@ -460,41 +496,57 @@ def verificar(host: str, token: str, config: dict) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--host", help="URL del workspace de Databricks")
+    parser.add_argument("--renovar-token", action="store_true", help="Reemplazar el token guardado en .env")
     parser.add_argument("--rapido", action="store_true", help="No sondear los límites de tokens")
     parser.add_argument("--sin-verificar", action="store_true", help="No hacer la llamada de prueba")
-    parser.add_argument("--compilar", action="store_true",
+    parser.add_argument("--reparar-motor", action="store_true",
+                        help="Reinstalar solo el agente para este equipo, sin consultar Databricks")
+    origen = parser.add_mutually_exclusive_group()
+    origen.add_argument("--compilar", action="store_true",
                         help="Compilar el binario acá en vez de descargarlo (necesita bun)")
-    parser.add_argument("--sin-compilar", action="store_true",
+    origen.add_argument("--sin-compilar", action="store_true",
                         help="Usar el binario oficial de npm (sin la marca propia)")
+    origen.add_argument("--binario-manifiesto", type=pathlib.Path,
+                        help="Descargar release fijada por manifiesto local con version y sha256")
     args = parser.parse_args()
+
+    if args.reparar_motor:
+        if args.compilar or args.binario_manifiesto:
+            parser.error("--reparar-motor usa el paquete oficial de npm")
+        npm = verificar_requisitos(necesita_npm=True)
+        binario = instalar_opencode(npm)
+        escribir_json(RAIZ / "bin" / "seleccion.json", {"path": str(binario.resolve())})
+        print("Motor reinstalado para este equipo. Ejecutá .\\cuy.cmd en Windows.")
+        return 0
 
     print("Instalación de cuy-cli")
 
     _paso(1, "Verificando requisitos")
-    npm = verificar_requisitos(necesita_npm=args.sin_compilar)
+    npm = verificar_requisitos(necesita_npm=not args.compilar and not args.binario_manifiesto)
 
     _paso(2, "Conexión al workspace")
     host = resolver_host(args.host)
-    token = resolver_credencial()
+    token = resolver_credencial(args.renovar_token)
 
     _paso(3, "Descubriendo modelos disponibles")
     config = generar(host, token, args.rapido)
 
     _paso(4, "Instalando el agente")
-    if args.sin_compilar:
-        binario = instalar_opencode(npm)
-    elif args.compilar:
+    if args.compilar:
         binario = compilar_desde_fuente()
+    elif args.binario_manifiesto:
+        binario = descargar_binario(args.binario_manifiesto)
     else:
-        binario = descargar_binario()
+        binario = instalar_opencode(npm)
+    escribir_json(RAIZ / "bin" / "seleccion.json", {"path": str(binario.resolve())})
     instalar_plugin()
 
     _paso(5, "Verificando que responde")
     if args.sin_verificar:
-        print("  (omitido)")
+        print("  Verificación omitida: la instalación no confirma que el modelo funcione.")
     elif not verificar(host, token, config):
         print("\n  La configuración quedó escrita, pero el modelo no respondió.")
-        print("  Revisá el token y que el workspace esté accesible desde esta red.")
+        print("  Revisá el error anterior: autenticación, red o compatibilidad de la respuesta.")
         return 1
 
     lanzador = "cuy.cmd" if ES_WINDOWS else "./cuy"
@@ -507,7 +559,7 @@ def main() -> int:
     en_uso = str(cuy.buscar_binario() or binario)
     propio = "node_modules" not in en_uso
     print("\n" + "─" * 60)
-    print("Listo. Para empezar:\n")
+    print("Instalación sin verificar. Para probar:\n" if args.sin_verificar else "Listo. Para empezar:\n")
     print(f"  {lanzador}\n")
     # Decirlo explícito evita la confusión más común: creer que se compiló la marca
     # propia cuando en realidad se usó el binario de npm.
@@ -525,4 +577,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (ValueError, OSError) as exc:
+        raise SystemExit(f"No se pudo completar: {exc}") from None

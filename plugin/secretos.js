@@ -26,6 +26,7 @@ import {
   rutaProhibida,
   rutaProhibidaEnComando,
   mensajeDeRechazo,
+  sanearRegistro,
 } from "./lib/secretos-core.js";
 import { identidad, anotar } from "./lib/auditoria-core.js";
 
@@ -49,6 +50,7 @@ export const Secretos = async () => {
 
     "tool.execute.after": async (input, output) => {
       if (!output) return;
+      if (output.metadata) output.metadata = sanearRegistro(output.metadata);
       const hallazgos = [];
       for (const campo of CAMPOS) {
         if (typeof output[campo] !== "string") continue;
@@ -67,6 +69,8 @@ export const Secretos = async () => {
         ...quien,
         evento: "secreto.redactado",
         herramienta: input?.tool,
+        sesion: input?.sessionID,
+        llamada: input?.callID,
         ruta: rutaDe(input?.args) ?? undefined,
         hallazgos,
       });

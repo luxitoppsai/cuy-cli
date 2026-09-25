@@ -30,7 +30,7 @@ ENDPOINTS = [
 def _fingir(formas):
     """Reemplaza las tres llamadas de red por respuestas fijas.
 
-    :param formas: Forma de respuesta por endpoint (``"texto"`` o ``"bloques"``).
+    :param formas: Forma de respuesta por endpoint (``"string"`` o ``"bloques"``).
     :returns: Un context manager que aplica los tres parches.
     """
     return mock.patch.multiple(
@@ -55,7 +55,7 @@ class Generar(unittest.TestCase):
         self.destino = destino
 
     def test_escribe_la_config_cuando_hay_endpoints_usables(self):
-        formas = {e["name"]: "texto" for e in ENDPOINTS}
+        formas = {e["name"]: "string" for e in ENDPOINTS}
         with _fingir(formas):
             config = instalar.generar(HOST, "token-falso", rapido=True)
 
@@ -74,7 +74,7 @@ class Generar(unittest.TestCase):
         self.assertFalse(self.destino.exists())
 
     def test_descarta_solo_el_endpoint_que_devuelve_bloques(self):
-        formas = {"databricks-claude-sonnet-4": "texto",
+        formas = {"databricks-claude-sonnet-4": "string",
                   "databricks-claude-haiku-4-5": "bloques"}
         with _fingir(formas):
             config = instalar.generar(HOST, "token-falso", rapido=True)

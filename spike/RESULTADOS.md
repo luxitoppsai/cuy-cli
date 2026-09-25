@@ -131,28 +131,17 @@ Aislando capacidad por capacidad con `llama-4-maverick`, el resultado es nítido
 La edición no deja rastro en el log: no hay excepción ni invocación registrada. Por eso
 la tarea completa parecía "colgarse" — llegaba hasta el punto de editar y ahí moría.
 
-### Esto confirma la tesis central del RFC, en nuestro propio entorno
+### Revisión del diagnóstico (2026-09-24)
 
-La herramienta `Edit` de OpenCode usa `old_string`/`new_string`, que es exactamente la
-superficie para la que **Claude está post-entrenado** (§2.2 del RFC). `llama-4-maverick`
-no lo está, y falla justo ahí — no en leer, no en ejecutar comandos, no en razonar:
-**en producir la llamada de edición con el formato exacto**.
+El cuelgue observado al editar no demuestra por sí solo una incompatibilidad de
+entrenamiento o herramientas. La conclusión anterior atribuía una causa sin aislar
+permisos, argumentos, streaming y manejo de errores. Se conserva arriba la observación,
+pero esa atribución queda retirada.
 
-Es el modo de fallo que la investigación predecía, observado de primera mano. Y es una
-buena noticia para el proyecto: **lo que se rompe acá es precisamente lo que Claude hace
-bien**, y el workspace del trabajo tiene Claude.
-
-### Consecuencias
-
-1. **En Community no se puede validar el ciclo completo.** Todo menos editar, sí. Es un
-   límite del entorno de desarrollo, no del diseño — conviene asumirlo y no perder
-   tiempo peleándolo.
-2. **La validación de la edición se hace en el trabajo**, con Claude. Es la prueba que
-   decide si el producto sirve.
-3. Si hiciera falta soportar bien modelos de pesos abiertos, la salida conocida es darles
-   **su propia superficie de edición** (§2.2.1) en vez de forzarlos a `old_string`/
-   `new_string`. Eso sí sería motivo legítimo de fork o plugin — el primero que aparece
-   en todo el spike.
+Tampoco hay evidencia suficiente para afirmar que en Community sea imposible completar
+la tarea. Hay que repetir leer–editar–probar con trazas, permisos efectivos y una versión
+fijada del motor. Las pruebas nuevas contra un proveedor sintético verifican el contrato
+de herramientas; no miden la capacidad de Llama ni la calidad de Claude.
 
 ## Lo que Databricks sí hace bien
 

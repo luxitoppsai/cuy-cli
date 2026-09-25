@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cuy — tareas con evidencia</title>
+<style>
+:root{color-scheme:dark;--bg:#14120f;--panel:#1c1916;--ink:#ece6dc;--muted:#b1a799;--line:#40372b;--amber:#e0a34a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;font-size:15px;line-height:1.6}
+main{max-width:1100px;margin:auto;padding:48px 28px}header{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding-bottom:20px}.brand{font-weight:750;font-size:25px;letter-spacing:-1px;color:var(--amber)}.brand span{font-size:13px;font-weight:400;letter-spacing:0;color:var(--muted);margin-left:14px}.badge{font-size:12px;border:1px solid var(--line);border-radius:20px;padding:4px 12px;color:var(--muted)}h1{font-size:clamp(27px,4vw,42px);font-weight:600;letter-spacing:-1.4px;line-height:1.15;max-width:720px;margin:38px 0 14px}.intro{color:var(--muted);max-width:680px;margin:0 0 28px}nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}button{font:inherit;cursor:pointer;padding:10px 18px;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:7px}button[aria-selected=true]{background:var(--amber);color:#211a0f;border-color:var(--amber);font-weight:600}button:hover{border-color:var(--amber)}button:focus-visible{outline:3px solid #6fa8a0;outline-offset:3px}.terminal{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:24px;box-shadow:0 24px 70px #0003;overflow:auto}.terminal[hidden]{display:none}pre{font:13px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;margin:0;color:#e7dfd1}.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin:28px 0}h2{font-size:14px;margin:0 0 5px;color:var(--amber)}.notes p{font-size:13px;color:var(--muted);margin:0}footer{border-top:1px solid var(--line);padding-top:18px;color:var(--muted);font-size:12px}code{color:var(--ink)}@media(max-width:650px){main{padding:24px 16px}header{align-items:flex-start}.brand span{display:block;margin:0}.notes{grid-template-columns:1fr;gap:16px}.terminal{padding:16px}pre{font-size:12px}h1{margin-top:28px}button{padding:8px 12px}}
+</style>
+</head>
+<body><main>
+<header><div class="brand">cuy<span>Herramientas para trabajar con criterio</span></div><div class="badge">Demo local · datos simulados</div></header>
+<h1>Una tarea.<br>Un resultado que podés comprobar.</h1>
+<p class="intro">Elegí el trabajo que necesitás. Cuy separa análisis, cambios y evidencia para que sepas qué está listo y qué todavía requiere revisión.</p>
+<nav role="tablist" aria-label="Flujos de trabajo">
+<button role="tab" id="tab-0" aria-controls="vista-0" aria-selected="true" data-vista="0">01 Entender</button>
+<button role="tab" id="tab-1" aria-controls="vista-1" aria-selected="false" data-vista="1" tabindex="-1">02 Corregir</button>
+<button role="tab" id="tab-2" aria-controls="vista-2" aria-selected="false" data-vista="2" tabindex="-1">03 Revisar</button>
+<button role="tab" id="tab-3" aria-controls="vista-3" aria-selected="false" data-vista="3" tabindex="-1">Sin verificar</button>
+</nav>
+<!-- TERMINALES -->
+<div class="notes"><div><h2>Alcance visible</h2><p>Entender y revisar son de lectura. Corregir conserva sus cambios en un worktree separado.</p></div><div><h2>Evidencia antes que promesas</h2><p>Las referencias se comprueban. Una corrección solo figura verificada cuando las pruebas elegidas pasan.</p></div><div><h2>El siguiente paso es tuyo</h2><p>Inspeccioná el diff y el informe. El flujo no aplica, publica ni reanuda cambios automáticamente.</p></div></div>
+<footer>Esta página muestra el mismo renderizador de resultados que <code>cuy tarea</code>. Es una demostración, no ejecuta tareas ni se conecta a servicios. Probalo con <code>cuy demo</code>.</footer>
+</main><script>
+const tabs=Array.from(document.querySelectorAll('[role="tab"]'));
+function activar(index){tabs.forEach((tab,i)=>{tab.setAttribute('aria-selected',String(i===index));tab.tabIndex=i===index?0:-1;const panel=document.getElementById(tab.getAttribute('aria-controls'));panel.hidden=i!==index;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',tab.id);});}
+tabs.forEach((tab,index)=>{tab.addEventListener('click',()=>activar(index));tab.addEventListener('keydown',event=>{let next=index;if(event.key==='ArrowRight')next=(index+1)%tabs.length;else if(event.key==='ArrowLeft')next=(index+tabs.length-1)%tabs.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=tabs.length-1;else return;event.preventDefault();activar(next);tabs[next].focus();});});activar(0);
+</script></body></html>

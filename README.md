@@ -1,347 +1,312 @@
 # cuy-cli
 
-CLI de codificación agéntica que habla con **Databricks Model Serving**, para poder usar
-un asistente en terminal sin sacar el código del perímetro de la empresa.
+Asistente de programación en terminal sobre **OpenCode + Databricks Model Serving**.
+Python resuelve instalación, descubrimiento y lanzamiento; OpenCode ejecuta el agente;
+los plugins locales agregan presupuesto, auditoría y redacción de secretos.
 
-Construido **sobre OpenCode** (MIT), no desde cero: el harness es un commodity que itera
-a diario; la ventaja está en la integración con Databricks y el gobierno para el equipo.
-El razonamiento completo, con la investigación que lo sustenta, está en [RFC.md](./RFC.md).
+**Estado:** prototipo con pruebas unitarias y una prueba de contrato del motor contra un
+proveedor sintético. La calidad de tareas completas con los modelos del workspace debe
+validarse con evaluaciones reales antes de desplegar al equipo.
 
-## Estado
+## Instalar y usar
 
-Fase 0 (spike). **La integración con Databricks funciona** — autenticación, streaming,
-tool calling, todo verificado. Falta completar una tarea de punta a punta con el agente.
-Hallazgos y comandos para reproducir: [spike/RESULTADOS.md](./spike/RESULTADOS.md).
+Requisitos: Python 3.10+ y Node/npm para el camino predeterminado.
 
-## Dos entornos
-
-| | Desarrollo | Destino |
-|---|---|---|
-| Workspace | Databricks Community | Databricks del trabajo |
-| Modelos | Pesos abiertos (Llama, Qwen, GPT-OSS, Gemma) | Claude |
-
-La superficie de Model Serving es idéntica en los dos, así que la integración se
-construye acá y se valida allá. Nada debe asumir en el código qué modelos existen
-(decisión D7 del RFC).
-
-## Instalación
-
-```
+```bash
 git clone https://github.com/luxitoppsai/cuy-cli.git
 cd cuy-cli
-python instalar.py          # en macOS/Linux: python3
+python3 instalar.py                 # en Windows: python
+./cuy                              # en Windows: cuy.cmd
 ```
 
-Eso es todo. El instalador compila el binario desde el fuente que viene en el repo
-—por eso arranca con el logo de cuy-cli—, descubre qué modelos sirve tu workspace,
-genera la configuración, instala los plugins y **hace una llamada real para confirmar
-que responde** antes de decir que terminó.
+La instalación usa `npm ci` y la versión exacta de `package-lock.json`. Pide host HTTPS
+y token, descubre modelos, escribe configuración y comprueba una respuesta con el
+contrato del proveedor elegido. Esta prueba consume tokens y no acredita edición ni
+calidad agéntica. `--sin-verificar` omite esa llamada final; el descubrimiento también
+hace llamadas. `--rapido` omite solamente el sondeo de límites de salida.
 
-Requiere [bun](https://bun.sh). La primera vez tarda varios minutos porque descarga
-~2 GB de dependencias; las siguientes son rápidas.
+La configuración queda en `opencode.json` y el token en `.env` (ignorados por git).
+Las variables ya exportadas tienen precedencia. Cambiar de workspace requiere ejecutar
+nuevamente el instalador y proporcionar la credencial correspondiente.
 
-Después:
-
-```
-cuy.cmd          # Windows
-./cuy            # macOS y Linux
-```
-
-**Usá siempre el lanzador**, no `opencode` a secas: aplica el blindaje de red. Sin él,
-el agente contacta `api.opencode.ai` durante una sesión normal aunque tu proveedor sea
-propio ([spike/RED.md](./spike/RED.md)).
-
-**Al cambiar de workspace** volvés a correr el instalador y se reconfigura solo. En el
-Databricks del trabajo detecta los Claude y los ordena por nivel sin que averigües nada.
-
-### Si no podés compilar
-
-```
-python instalar.py --sin-compilar
-```
-
-Usa el binario oficial de OpenCode en vez de compilar: arranca en un minuto y no
-necesita bun, pero **vas a ver el logo de OpenCode**. Todo lo demás es idéntico.
-
-**En redes corporativas que interceptan TLS** —lo más común en una empresa— bun no
-reconoce el certificado propio de la red y no puede bajar dependencias
-(`SELF_SIGNED_CERT_IN_CHAIN`).
-
-**En Windows el instalador lo resuelve solo**: exporta los certificados raíz del sistema
-—donde ya está el de tu empresa, por eso funcionan el navegador y npm— y reintenta
-apuntando bun ahí. No hace falta pedirle nada a IT.
-
-Si aun así falla, o estás en macOS/Linux, apuntá bun al certificado a mano:
-
-```
-# Windows
-$env:NODE_EXTRA_CA_CERTS="C:\ruta\al\certificado.pem"
-# macOS/Linux
-export NODE_EXTRA_CA_CERTS=/ruta/al/certificado.pem
-```
-
-> **No desactives la verificación** (`NODE_TLS_REJECT_UNAUTHORIZED=0`). Dejaría pasar a
-> cualquier intermediario, no solo al de tu empresa, justo mientras se descarga código
-> que después se compila y ejecuta en tu máquina.
-
-Otras fallas conocidas al compilar:
-
-- **Falta bun** — `powershell -c "irm bun.sh/install.ps1 | iex"` en Windows. El
-  instalador lo busca también en `~/.bun/bin`, así que **no hace falta reiniciar la
-  terminal** después de instalarlo.
-- **`tree-sitter-powershell` falla** (necesita Visual Studio Build Tools en Windows). Es
-  una gramática de resaltado y **no es fatal**: si `node_modules` quedó completo, volvé
-  a correr el instalador y el build sigue.
-
-
-### Opciones
+Para trabajar en otro proyecto, invocá el lanzador por su ruta:
 
 ```bash
-python3 instalar.py --host https://...     # sin preguntar el workspace
-python3 instalar.py --rapido               # no sondear límites de tokens (más veloz)
-python3 instalar.py --sin-verificar        # omitir la llamada de prueba final
+cd /ruta/al/proyecto
+/ruta/a/cuy-cli/cuy
+/ruta/a/cuy-cli/cuy doctor
+/ruta/a/cuy-cli/cuy doctor --json
+/ruta/a/cuy-cli/cuy gasto
 ```
 
-### Otras herramientas
+El proyecto sigue siendo el directorio actual. El lanzador carga la configuración y los
+plugins fuente de Cuy por rutas absolutas, sin copiar plugins ni depender de la carpeta
+`.opencode` del proyecto. También aplica las restricciones actualizadas a configuraciones
+generadas por versiones anteriores. Los `opencode.json` y plugins locales del proyecto
+no se cargan. Las instrucciones de trabajo deben vivir en `AGENTS.md`.
+
+`doctor` comprueba archivos, configuración efectiva de Cuy, tarifas, credencial presente,
+contabilidad y versión del ejecutable. No imprime el token. **No certifica** la carga
+real de hooks, aislamiento de red ni políticas del servidor. `doctor --verificar` agrega
+una llamada real y facturable al proveedor configurado.
+
+## Entender, corregir y revisar
 
 ```bash
-python3 generar_config.py --host https://...   # solo regenerar la configuración
-python3 -m unittest discover tests             # pruebas
-node tests/presupuesto.test.mjs                # pruebas de los plugins
-bash spike/01-conexion.sh                      # probar la API cruda (solo Unix)
+./cuy inicio                          # portada y estado local
+./cuy tarea entender "Explicá el recorrido de un pedido"
+./cuy tarea revisar "Buscá regresiones en src/stock.py"
+./cuy tarea corregir "Corregí el límite de reserva" --prueba "python -m unittest tests.test_stock"
+./cuy demo                            # resultado de ejemplo, sin inferencia
 ```
 
-> En Windows usá `python` en vez de `python3`. El único archivo que no corre ahí es
-> `spike/01-conexion.sh`, que es una herramienta de diagnóstico, no parte del producto.
+En Windows se usa `cuy.cmd`. Los tres flujos requieren un repositorio Git con un commit.
+`--proyecto /ruta/al/repo` elige otro proyecto. `--json` devuelve el informe estructurado.
+`--timeout 600` fija el tiempo máximo del motor y de **cada** prueba; no es un límite total
+ni un presupuesto por tarea.
 
-
-## El fuente vive en este repo
-
-`vendor/opencode` trae el fork con `git subtree`, así que un `git clone` se lo lleva todo
-y compilar no requiere bajar nada más. Clonar pesa ~78 MB.
-
-Los cambios de marca son tres archivos, en la rama `cuy` del
-[fork](https://github.com/luxitoppsai/opencode). Para traer una versión nueva de upstream:
-
-```bash
-git subtree pull --prefix=vendor/opencode https://github.com/luxitoppsai/opencode.git cuy --squash
-```
-
-Al subir de versión conviene **repetir la auditoría de red** ([spike/RED.md](./spike/RED.md)):
-sus conclusiones valen para la versión auditada, no para cualquiera.
-
-
-## Aspecto
-
-El instalador deja un tema propio (`tema/cuy.json`) — paleta cálida de tierra, pensada
-para sesiones largas: los colores de identidad se reservan para lo que hay que mirar y el
-resto queda neutro para no competir con el código. **Se elige una vez**, dentro del
-agente:
-
-```
-/theme      →  elegí "cuy"
-```
-
-La elección queda persistida. No se puede fijar desde `opencode.json`: `theme` no es una
-clave válida de configuración en esta versión.
-
-El nombre que aparece en las conversaciones sí es configurable y ya viene puesto
-(`username: cuy-cli`).
-
-**Lo que no se puede cambiar sin recompilar** es el logo ASCII y el nombre "opencode" del
-arranque: están en el binario (`packages/opencode/src/cli/ui.ts` del fuente). Hacerlo
-implica mantener un binario propio — ver `ADR-001` en el vault.
-
-## Límites y permisos
-
-Dos controles distintos, que se configuran por separado.
-
-**Qué puede hacer.** La instalación deja una política pensada para equipo: leer, buscar
-y navegar no piden permiso; correr pruebas y git de solo lectura tampoco; lo irreversible
-—`rm -rf`, `sudo`, `git push --force`, `git reset --hard`, ejecutar lo que se descarga de
-internet— está **bloqueado**, no preguntado; y lo demás pregunta.
-
-El criterio es que si el agente pregunta por todo, la gente aprueba sin leer y el control
-deja de servir. Se ajusta en el bloque `permission` de `opencode.json`, con patrones por
-comando y override por agente.
-
-> En modo headless (`opencode run`) una acción `ask` no tiene quién la responda y la
-> sesión queda esperando. Para uso automatizado conviene dejar solo `allow` y `deny`.
-
-**Cuánto puede gastar.** OpenCode cuenta tokens pero no permite ponerles tope: un
-agente en loop gasta hasta que alguien mire. El plugin `plugin/presupuesto.js` acumula
-el gasto **por mes** y corta al llegar al límite. Se libera solo al cambiar de mes.
-
-```bash
-python gasto.py                  # ver el acumulado y cuánto queda
-CUY_LIMITE_USD=3 cuy.cmd         # cambiar el tope (default: 10)
-CUY_LIMITE_USD=0 cuy.cmd         # sin tope
-```
-
-**Sobre el precio.** Databricks devuelve tokens, nunca costo. Y no cobra en dólares por
-token sino en **DBU por millón de tokens**, con un valor del DBU que depende del
-contrato. `generar_config.py` traduce DBU a dólares y lo escribe como `cost` en cada
-modelo de `opencode.json`; de ahí en adelante **OpenCode calcula el gasto solo** y lo
-muestra en la barra, junto al porcentaje de contexto. El plugin no recalcula nada: suma
-lo que OpenCode ya calculó.
-
-```bash
-# si tu dólar por DBU no es 0.07, regenerá la config con el tuyo
-CUY_USD_POR_DBU=0.05 python generar_config.py
-```
-
-Para tarifas de otro contrato, editá `DBU_POR_MILLON` en `generar_config.py`.
-
-Tarifas reales de Databricks para los Claude, en DBU por millón de tokens:
-
-| Modelo | DBU entrada / salida | USD a $0.07/DBU |
+| Flujo | Entregable | Comprobación del lanzador |
 |---|---|---|
-| Haiku 4.5 | 14.286 / 71.429 | $1 / $5 |
-| Sonnet | 42.857 / 214.286 | $3 / $15 |
-| Opus | 71.429 / 357.143 | $5 / $25 |
+| Entender | Resumen y referencias | Las rutas/líneas existen; sin cambios detectados |
+| Revisar | Hallazgos con severidad, evidencia e impacto | Ubicaciones válidas; sin cambios detectados |
+| Corregir | Worktree, diff exportado e informe | Pruebas explícitas antes/después; original sin cambios detectados |
 
-**No coinciden con la lista de Anthropic**: Opus se factura a un tercio de ella. Derivar
-las tarifas de precios públicos —como se intentó primero— daba números muy equivocados.
+Los agentes de tarea tienen permisos propios: lectura/búsqueda y, solo para corregir,
+edición. No reciben shell, delegación ni acceso fuera del directorio. `revisar` analiza
+el código actual indicado por el usuario; no reconstruye automáticamente un diff histórico.
+La validez de una referencia no demuestra que la conclusión del modelo sea correcta.
 
-Un modelo sin tarifa conocida se queda **sin `cost`** en vez de con un precio inventado:
-suma cero y no aparece en la barra.
+**Corregir exige un árbol limpio** y crea un worktree separado desde HEAD. Si hay cambios
+previos, los conserva y no inicia la corrección. Entender/revisar sí pueden analizar el
+estado actual con cambios pendientes. No se copian archivos ignorados, credenciales ni
+entornos de dependencias al worktree. Las pruebas deben poder ejecutarse en ese entorno.
 
+`--prueba` es una autorización explícita para ejecutar ese comando **antes y después** de
+la edición; se puede repetir. Se ejecuta como lista de argumentos, sin shell ni operadores
+como `&&` o pipes. Para rutas con espacios o separadores Windows, entrecomillá el ejecutable
+dentro del argumento. Las pruebas ejecutan código con los permisos del usuario; no son un
+sandbox. Se retiran las credenciales conocidas del proveedor y su configuración del entorno
+del proceso de prueba. No se transmite la salida cruda de las pruebas al modelo.
 
-## Secretos
+Un cambio solo aparece **VERIFICADA** si se entregó el informe requerido, hubo cambios y
+todas las pruebas elegidas terminaron con código 0 sin timeout. No significa ausencia de
+bugs: solo acredita esas comprobaciones. Sin pruebas o con pruebas fallidas queda
+**SIN VERIFICAR** (exit code 2). Errores del motor, formato inválido, referencias inventadas,
+cambios inesperados o cancelación no se presentan como éxito (exit code 1).
+Entender/revisar válidos se marcan **ENTREGADA · por revisar** (exit code 0).
 
-Los permisos controlan **qué herramientas** corre el agente. Esto controla **qué
-contenido sale** ([RFC-002](docs/rfc/RFC-002-redaccion-de-secretos.md)). Sin él, un
-`cat .env` manda credenciales al endpoint de inferencia, donde quedan en logs con otra
-audiencia y otra retención que el repo de donde salieron.
+El informe conserva base Git, cambios detectados, sesiones, duración, costo reportado por
+los pasos y códigos de prueba antes/después. La detección compara archivos versionados y
+no ignorados; no inspecciona todo el sistema, archivos ignorados ni el interior de submódulos.
+Si las pruebas modifican archivos no ignorados se pide inspección, no se acepta el cambio
+como verificado. El costo de pasos no incluye necesariamente llamadas auxiliares del motor.
 
-Dos mecanismos, porque fallan distinto:
+Resultados en `~/.local/share/cuy-cli/tareas/<id>/` (`CUY_TAREAS` permite otra carpeta **fuera**
+del proyecto): `base.json`, `resultado.json`, `cambios.patch` y el worktree cuando corresponda.
+El patch incluye archivos nuevos sin staging ni commits automáticos. El informe y el diff
+pueden contener información del proyecto: se guardan localmente, con permisos restrictivos
+cuando el sistema los soporta. No se exportan a otro servicio.
 
-| | Cubre | Falla cuando |
+Inspeccioná el resultado con `git -C <worktree> status --short`, `git -C <worktree> diff` y
+el patch exportado. La aplicación al repositorio original y la limpieza del worktree son
+manuales. No hay auto-commit, auto-publicación ni reanudación automática tras interrupción.
+
+### Vista visual
+
+[Demo interactiva local](docs/demo.html) · [captura renderizada](docs/demo.png).
+Los ejemplos son simulados y usan el mismo renderizador de resultados que las tareas reales.
+
+```bash
+./cuy demo --flujo entender
+./cuy demo --flujo revisar
+./cuy demo --flujo pendiente
+./cuy demo --html /tmp/cuy-demo.html
+```
+
+La demo no llama al modelo. La terminal adapta el ancho y desactiva colores al redirigir
+salida o definir `NO_COLOR`. La página tiene pestañas navegables por teclado y permite
+inspeccionar los estados sin ejecutar tareas.
+
+## Origen y actualización del motor
+
+- **Predeterminado:** paquete oficial fijado a `opencode-ai@1.18.32`, con marca OpenCode.
+- `python3 instalar.py --compilar`: compila el subtree `vendor/opencode` con Bun y lockfile
+  congelado. Requiere descargar las dependencias del build; no hace falta para usar Cuy.
+- `python3 instalar.py --binario-manifiesto release.json`: descarga una release propia
+  fijada por un manifiesto local revisado. Exige `version` y un mapa `sha256` por nombre
+  de artefacto (`cuy-darwin-arm64`, `cuy-windows-x64.exe`, etc.). No acepta `latest`.
+
+Las descargas se validan antes de reemplazar el ejecutable. No se publica un manifiesto
+con hashes inventados: quien construye la release debe producirlo y revisarlo. Un hash
+comprueba integridad respecto del manifiesto; no sustituye su procedencia confiable.
+
+La selección instalada queda en `bin/seleccion.json`, evitando que una descarga antigua
+oculte una compilación o instalación posterior. Las instalaciones anteriores mantienen
+su selección por compatibilidad hasta reinstalar.
+
+El fuente vendorizado y un binario pueden diferir. Ejecutá las pruebas del motor real
+antes de aprobar una actualización. Cambiar el lockfile es deliberado; repetí también
+la auditoría de red. La observación histórica en [spike/RED.md](spike/RED.md) solo describe
+la versión y los escenarios allí medidos.
+
+En redes corporativas con certificados propios, configurá `NODE_EXTRA_CA_CERTS`. El
+build intenta exportar raíces del sistema en Windows. No desactives la validación TLS.
+
+## Agentes y permisos
+
+| Rol | Modelo inicial | Herramientas |
 |---|---|---|
-| **Rechaza rutas** (`.env`, `*.pem`, `~/.aws/credentials`, `.databrickscfg`…) | El archivo entero, sin leerlo | El secreto está en un archivo normal |
-| **Redacta patrones** (`dapi…`, `AKIA…`, `ghp_…`, claves privadas) | Cualquier origen, incluido `bash` | El secreto no tiene forma reconocible |
+| `build` | Preferencia Sonnet; respaldo por nombre/tamaño estimado | Edición habilitada, shell sujeto a política; hasta 30 pasos |
+| `plan` | El mismo modelo capaz que `build` | Lectura y búsqueda; sin shell, edición ni delegación; hasta 15 pasos |
+| `explore` | Preferencia Haiku; respaldo económico estimado | Subagente de lectura y búsqueda; hasta 15 pasos |
 
-Lo redactado conserva la forma, para que el modelo siga entendiendo el archivo:
+`scout` se retiró porque duplicaba `explore` y no tenía restricciones propias.
+La selección por nombre es una heurística: no constituye una evaluación de capacidad.
+Los límites de contexto y tarifas por familia también son valores configurados, no
+capacidades descubiertas del servidor.
 
-```python
-HOST  = "https://x.com"
-TOKEN = "[REDACTADO:databricks-pat]"
-DEBUG = True
-```
+La política global no incluye `*: allow`: preserva restricciones nativas. Los roles de
+lectura tienen una lista explícita de herramientas permitidas. Tests, `npm run` y `make`
+piden permiso: ejecutan código del repositorio. Los patrones destructivos conocidos se
+rechazan. La política está en `construir_permisos()` y el lanzador la aplica al arrancar;
+modificar `permission` en el JSON generado no altera esa política.
 
-Un efecto del diseño que conviene conocer: si el agente intenta reescribir una línea
-redactada, su `oldString` no coincide con el archivo real y la edición falla. La
-redacción **no puede pisar un secreto con `[REDACTADO]` en disco**.
+**Los patrones de shell no son un sandbox.** Un comando permitido puede ejecutar código,
+escribir o usar la red. En ejecución headless, una acción que pide permiso puede ser
+rechazada por el motor; no asumas que una prueba pendiente fue ejecutada.
 
-Las plantillas se leen normal (`.env.example`, `config.template.json`): existen para
-versionarse y no tienen valores.
-
-Cada redacción queda en la auditoría con el tipo y la cantidad, **nunca el valor**.
-
-> **Es una barrera, no un control.** El plugin corre en tu máquina y se puede editar.
-> Sirve contra el accidente —que es como ocurren casi todas las filtraciones— no contra
-> alguien decidido. Tampoco impide que una persona pegue un token en el prompt. El
-> control duro vive en el Gateway de Databricks.
->
-> **No tiene variable para apagarlo**, a diferencia del tope de gasto: una barrera con
-> interruptor se apaga el día que molesta, que es el día que hace falta.
-
-## Auditoría
-
-Cada sesión deja registro de qué tocó el agente y quién lo pidió, en
-`~/.local/share/cuy-cli/auditoria.jsonl`.
+## Presupuesto y eficiencia
 
 ```bash
-python3 auditar.py                 # resumen de los últimos 7 días
-python3 auditar.py --comandos      # todos los comandos ejecutados
-python3 auditar.py --archivos      # todos los archivos modificados
-python3 auditar.py --usuario ana --dias 30
+python3 gasto.py
+CUY_LIMITE_USD=3 ./cuy              # macOS/Linux
+# PowerShell: $env:CUY_LIMITE_USD="3"; .\cuy.cmd
 ```
 
-Se registra **qué** se hizo, no el contenido: rutas de archivo pero no su texto,
-comandos pero no su salida. Un registro de auditoría con el código adentro es una
-filtración esperando ocurrir, y crece sin control. También quedan los permisos que la
-política consultó o bloqueó, que es la mitad que no aparece en ningún otro lado.
+El plugin comprueba el gasto mensual en `chat.params`, **antes de cada inferencia que
+pasa por ese hook**, además de impedir nuevas herramientas al alcanzar el límite. Relee
+el archivo en cada comprobación, por lo que detecta cambios de mes y gasto de otras
+sesiones. Cuenta eventos `step-finish` una sola vez por identificador.
 
-Retención de 90 días por defecto (`CUY_RETENCION_DIAS`), y se apaga con
-`CUY_AUDITORIA_OFF=1`.
+La persistencia usa lock entre procesos y reemplazo atómico. Un archivo corrupto o un
+fallo contable bloquea la siguiente inferencia; no se interpreta como cero. Un lock
+huérfano tras un cierre abrupto requiere revisar procesos activos antes de retirarlo.
+El archivo está en `~/.local/share/cuy-cli/gasto.json` (`CUY_GASTO` cambia la ruta).
 
-> **Es atribución, no prueba.** El archivo lo escribe el mismo usuario cuya actividad
-> registra, así que puede editarlo. Sirve para saber qué hizo el agente y repartir
-> consumo, no para sostener una acusación. Para eso habría que centralizarlo fuera del
-> alcance del usuario — hoy fuera de alcance a propósito.
+Con tope activo, un modelo sin tarifas positivas `cost.input`/`cost.output` se rechaza.
+**Costo desconocido no significa gratis.** Se pueden declarar tarifas del contrato en
+el modelo de `opencode.json`; `CUY_USD_POR_DBU` ajusta la conversión al regenerar.
+`CUY_LIMITE_USD=0` desactiva explícitamente el tope local.
 
-## Aislamiento de red
+Es una **estimación local**, no un límite de facturación estricto: una petición iniciada
+antes del corte puede exceder el saldo y varias peticiones simultáneas pueden estar en
+vuelo. No reserva costo por anticipado, no cancela otras sesiones ni incluye llamadas
+hechas fuera del motor, como sondeos de instalación. Los precios, descuentos y tokens de
+caché deben contrastarse con el contrato y consumo del servidor. El límite corporativo
+pertenece al Gateway, fuera del control del usuario local.
 
-`./cuy` desactiva todas las salidas de red que no sean tu proveedor: verificación de
-actualizaciones, descarga del catálogo de modelos, **compartir sesiones** —que subiría la
-conversación con el código adentro a un servidor de terceros—, descarga de servidores de
-lenguaje y skills remotas.
+## Secretos y auditoría
 
-| | Destinos contactados |
-|---|---|
-| `opencode` directo | `api.opencode.ai` + tu proveedor |
-| `./cuy` | **solo tu proveedor** |
+El plugin rechaza rutas sensibles conocidas y redacta patrones en salidas de herramientas,
+títulos y metadatos. Incluye PATs, claves privadas, asignaciones entre comillas en código
+y JSON, y cabeceras Bearer/Basic. La auditoría aplica saneamiento antes de persistir,
+incluyendo argumentos y parámetros de URL reconocibles.
 
-Si seguridad de tu empresa pide más garantía que unas variables de entorno, el siguiente
-escalón es una regla de firewall que solo permita salida al host de Databricks: eso no
-depende de que el binario respete su propia configuración.
-
-## Qué vive dónde
-
-El repo tiene **solo código propio**: el instalador, el generador de configuración, los
-plugins, las pruebas y la documentación. **OpenCode no está en el repo** — se baja de npm
-al instalar (`node_modules`, unos 286 MB, ignorados por git).
-
-La versión está **fijada exacta** (`opencode-ai: 1.18.32`, sin `^`) y el
-`package-lock.json` está versionado. Para una herramienta de equipo importa más que todos
-tengan exactamente lo mismo que recibir mejoras automáticas: OpenCode itera a diario, y
-el generador escribe configuración para un esquema concreto (`small_model`, `limit`,
-agentes). Si cambia entre versiones, a uno le funciona y a otro no.
-
-**Para subir de versión**, que es un acto deliberado:
+La cobertura es deliberadamente limitada: regex no reconoce todos los secretos, alias,
+enlaces simbólicos, archivos adjuntos ni valores transformados. No redacta el prompt que
+una persona pega directamente. Un archivo `.env.example` puede leerse; su nombre no
+prueba que sus valores sean inocuos. La redacción tampoco garantiza que una reescritura
+completa de archivo preserve un valor que el modelo no vio.
 
 ```bash
-npm install opencode-ai@<nueva-version> --save-exact
-python3 instalar.py --sin-verificar   # regenerar config por si cambió el esquema
-./node_modules/.bin/opencode          # probar antes de commitear el lock
+python3 auditar.py
+python3 auditar.py --comandos
+python3 auditar.py --archivos --dias 30
 ```
 
-## Cómo habla con cada modelo
+El registro usa `sessionID` y `callID` reales. Distingue `herramienta.intento` de
+`herramienta.resultado` (`completed` o `error`); una sesión `idle` queda como estado, no
+como cierre definitivo. Captura eventos `permission.asked` y `permission.replied`.
+No todas las denegaciones automáticas emiten una consulta: el resultado de herramienta
+puede mostrar el fallo sin atribuir su causa. No se guardan salida, contenido editado ni
+texto de errores.
 
-Databricks expone dos contratos, y `generar_config.py` elige el que corresponde:
+Los informes muestran resultados completados. Registros antiguos sin resultado no se
+consideran éxito. Ubicación: `~/.local/share/cuy-cli/auditoria.jsonl`, configurable con
+`CUY_AUDITORIA`. Retención de 90 días (`CUY_RETENCION_DIAS`); la limpieza y los append
+comparten lock. `CUY_AUDITORIA_OFF=1` desactiva el registro local.
 
-| Modelos | Contrato | Proveedor en la config |
-|---|---|---|
-| Claude | API Messages de Anthropic | `cuy-claude` (`@ai-sdk/anthropic`) |
-| El resto | OpenAI-compatible | `cuy` (`@ai-sdk/openai-compatible`) |
+**No es evidencia inmutable:** el usuario puede modificar plugins, políticas y registros.
+La atribución local tampoco sustituye la identidad autenticada de Databricks.
 
-**Claude va por su API nativa por dos razones.** La primera es que la otra se rompe:
-Sonnet 4.5 manda el razonamiento como lista de bloques dentro de `delta.content`, donde
-la especificación de OpenAI exige un string, y el cliente corta con `Invalid input:
-expected string, received array`. No es configuración: el endpoint lo emite sin que se lo
-pidan, así que del lado del cliente no hay nada que hacer. La segunda es la tesis del
-RFC — un modelo rinde mejor contra la superficie para la que fue entrenado.
+## Red y gobierno
 
-Todo se descubre solo: si el passthrough responde, con qué autenticación (`Bearer` o
-`x-api-key`) y con qué nombre acepta cada modelo (`claude-sonnet-4-5`, no
-`databricks-claude-sonnet-4-5`). Si no responde, Claude vuelve al contrato OpenAI.
+El lanzador desactiva actualización automática, descarga de catálogo, compartir sesiones,
+descarga de LSP y skills externas. Esto reduce conexiones automáticas conocidas; **no es
+un firewall ni garantiza que solo se contacte Databricks**. Dependencias, configuraciones
+globales de OpenCode, plugins, MCP y herramientas pueden introducir otras conexiones.
+Los controles locales no aíslan código malicioso ni administradores del equipo.
 
-Para verificarlo a mano contra tu workspace:
+Para gobierno corporativo hacen falta controles independientes: autenticación central,
+allowlist de modelos, restricciones de salida, presupuesto y auditoría del servidor.
+El plan de evolución con criterios verificables está en
+[docs/EVOLUCION.md](docs/EVOLUCION.md).
+
+## Pruebas
 
 ```bash
-python spike/probar_anthropic.py
+python3 -m unittest discover tests
+node --test tests/*.test.mjs
+
+# Contrato con el ejecutable real, proveedor local sintético y carpetas temporales:
+CUY_TEST_BINARIO="$PWD/bin/cuy" python3 -m unittest discover -s tests -p test_motor.py
+# También se puede apuntar a node_modules/opencode-ai/bin/opencode.exe.
 ```
 
+La prueba del motor comprueba edición y auditoría, ausencia de herramientas de escritura
+en `plan`, bloqueo antes de llegar al proveedor cuando se agotó el presupuesto y el flujo
+completo de corrección aislada con prueba antes/después y patch exportado. Usa
+localhost y credenciales ficticias: no llama a Databricks ni mide calidad del modelo.
+Sin `CUY_TEST_BINARIO`, esas pruebas se omiten explícitamente. CI ejecuta pruebas unitarias
+y de contrato con el paquete fijado en Windows, macOS y Linux.
 
-## Gotchas encontrados
+Los RFC y spikes conservan decisiones e hipótesis históricas; este README describe el
+comportamiento actual.
 
-- **El límite de tokens es por modelo**, no global (`gpt-oss-120b`: 25000,
-  `llama-4-maverick`: 8192). El error no dice cuál ni de dónde sale el número.
-- **Un sondeo trivial da falsos aprobados.** Preguntar "di: ok" sin streaming hacía pasar
-  a Sonnet 4.5, que reventaba en la primera tarea real: el razonamiento solo aparece
-  cuando el modelo de verdad razona, y en el camino de streaming.
-- **`small_model` hay que declararlo**: OpenCode apunta por defecto a un modelo que no
-  existe en el workspace y da 404 en cada sesión, solo visible en el log.
-- **Un agente "lento" puede ser backoff de reintentos.** Mirar
-  `~/.local/share/opencode/log/opencode.log` antes de sospechar de la red o del modelo.
+### Si Databricks devuelve HTTP 401 al listar endpoints
+
+El descubrimiento consulta `GET /api/2.0/serving-endpoints` del workspace de
+Databricks. Un 401 indica que se rechazó la autenticación, antes de probar los
+modelos. Revisá que `DATABRICKS_HOST` sea la URL raíz del workspace correcto y
+que su PAT o access token OAuth siga vigente.
+
+La variable `DATABRICKS_TOKEN` del entorno tiene prioridad sobre `.env`.
+Actualizala si está definida. Si preferís usar el archivo, eliminá la variable
+de la terminal (`Remove-Item Env:DATABRICKS_TOKEN` en PowerShell o
+`unset DATABRICKS_TOKEN` en macOS/Linux) y ejecutá:
+
+```sh
+python instalar.py --renovar-token --host https://TU-WORKSPACE
+```
+
+El token se pide de forma oculta y se reemplaza sin borrar las otras opciones de
+`.env`. En macOS/Linux podés necesitar `python3`. Las comillas y `export` en
+`.env` están admitidos. No pegues credenciales en comandos, capturas ni reportes.
+
+### Windows: «Esta aplicación no se puede ejecutar en el equipo»
+
+En PowerShell usá `.\cuy.cmd`. Primero comprobá `python --version`: si también
+falla, hay que reparar la instalación de Python para ese equipo. Si Python funciona,
+reinstalá el motor desde la carpeta del proyecto:
+
+```powershell
+python instalar.py --reparar-motor
+.\cuy.cmd
+```
+
+La reparación requiere npm y acceso a su registro, pero no consulta Databricks ni
+modifica el token o la configuración de modelos. Instala el paquete fijado en el
+proyecto y actualiza el ejecutable seleccionado. No copies `node_modules` ni los
+binarios compilados de macOS/Linux a Windows. El lanzador valida el formato Windows
+antes de intentar ejecutar el agente; esa validación no sustituye una prueba en la
+versión y arquitectura de Windows de destino.

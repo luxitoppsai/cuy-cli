@@ -19,9 +19,13 @@ En macOS y Linux también sirve ``./cuy``; en Windows, ``cuy.cmd``.
 """
 
 import os
+import json
 import pathlib
 import subprocess
 import sys
+
+from configuracion import numero_entorno, cargar_archivo_env, validar_token
+from ejecutables import validar_windows
 
 RAIZ = pathlib.Path(__file__).resolve().parent
 ES_WINDOWS = os.name == "nt"
@@ -35,6 +39,7 @@ BLINDAJE = {
     "OPENCODE_AUTO_SHARE": "0",
     "OPENCODE_DISABLE_LSP_DOWNLOAD": "1",
     "OPENCODE_DISABLE_EXTERNAL_SKILLS": "1",
+    "OPENCODE_DISABLE_PROJECT_CONFIG": "1",
 }
 
 
@@ -42,58 +47,117 @@ def cargar_env() -> None:
     """Carga `.env` sin pisar lo que ya venga del entorno.
 
     Lo que el usuario exporta a mano manda sobre el archivo: es lo que espera quien
-    hace ``CUY_LIMITE_TOKENS=50000 python cuy.py``.
+    hace ``CUY_LIMITE_USD=5 python cuy.py``.
     """
-    env = RAIZ / ".env"
-    if not env.exists():
-        return
-    for linea in env.read_text(encoding="utf-8").splitlines():
-        linea = linea.strip()
-        if not linea or linea.startswith("#") or "=" not in linea:
-            continue
-        clave, valor = linea.split("=", 1)
-        os.environ.setdefault(clave.strip(), valor.strip())
+    cargar_archivo_env(RAIZ / ".env")
+    if os.environ.get("DATABRICKS_TOKEN"):
+        os.environ["DATABRICKS_TOKEN"] = validar_token(os.environ["DATABRICKS_TOKEN"])
 
 
 def buscar_binario() -> pathlib.Path | None:
     """Ubica el ejecutable a usar, prefiriendo el compilado desde el fork propio.
 
-    Orden de preferencia: el descargado de la release, el compilado localmente, y
-    por último el de npm. Los dos primeros traen la marca de cuy-cli.
-
-    En Windows npm crea un envoltorio ``.cmd``; en el resto, un enlace sin extensión.
+    Respeta la selección persistida por el instalador. En instalaciones anteriores,
+    conserva la preferencia histórica: descarga, compilado y paquete npm.
+    Ejecuta el binario nativo directamente, sin pasar prompts por cmd.exe.
 
     :returns: Ruta del ejecutable, o ``None`` si no hay ninguno.
     """
-    # 1) El descargado desde la release (camino por defecto del instalador).
+    seleccion = RAIZ / "bin" / "seleccion.json"
+    if seleccion.exists():
+        elegido = pathlib.Path(json.loads(seleccion.read_text(encoding="utf-8"))["path"])
+        if not elegido.is_file():
+            raise ValueError("El ejecutable seleccionado ya no existe; repetí la instalación.")
+        return validar_windows(elegido) if ES_WINDOWS else elegido
+    # Compatibilidad con instalaciones anteriores.
     descargado = RAIZ / "bin" / ("cuy.exe" if ES_WINDOWS else "cuy")
     if descargado.exists():
-        return descargado
+        return validar_windows(descargado) if ES_WINDOWS else descargado
     # 2) El compilado acá con --compilar.
     propio = sorted((RAIZ / "vendor" / "opencode" / "packages" / "opencode" / "dist").glob("*/bin/opencode*"))
+    if ES_WINDOWS:
+        propio = [p for p in propio if p.suffix.lower() == ".exe"
+                  and p.parent.parent.name.startswith("opencode-windows-")]
     if propio:
-        return propio[0]
+        return validar_windows(propio[0]) if ES_WINDOWS else propio[0]
     # 3) El oficial de npm, sin la marca propia.
     base = RAIZ / "node_modules" / ".bin"
-    candidatos = [base / "opencode.cmd", base / "opencode.exe"] if ES_WINDOWS else [base / "opencode"]
-    return next((c for c in candidatos if c.exists()), None)
+    candidatos = [RAIZ / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"]
+    if not ES_WINDOWS:
+        candidatos.append(base / "opencode")
+    encontrado = next((c for c in candidatos if c.is_file()), None)
+    return validar_windows(encontrado) if ES_WINDOWS and encontrado else encontrado
+
+
+def entorno_agente() -> dict:
+    """Aplica la configuración de Cuy sin cambiar el directorio de trabajo."""
+    from generar_config import construir_permisos, permisos_lectura
+
+    numero_entorno("CUY_LIMITE_USD", 10)
+    numero_entorno("CUY_USD_POR_DBU", 0.07)
+    config_path = RAIZ / "opencode.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    # Migra también las instalaciones anteriores sin volver a sondear la red.
+    config["permission"] = construir_permisos()
+    lectura = permisos_lectura()
+    agentes = config.setdefault("agent", {})
+    for nombre in ("plan", "explore"):
+        agente = agentes.setdefault(nombre, {})
+        agente["permission"] = dict(lectura)
+        agente["steps"] = 15
+    agentes["plan"]["model"] = config["model"]
+    agentes["explore"]["mode"] = "subagent"
+    agentes["scout"] = {"disable": True}
+    agentes.setdefault("build", {})["steps"] = 30
+    config["share"] = "disabled"
+    config["enabled_providers"] = list(config["provider"])
+    config["plugin"] = [(RAIZ / "plugin" / f"{nombre}.js").as_uri()
+                        for nombre in ("presupuesto", "auditoria", "secretos")]
+    entorno = {**os.environ, **BLINDAJE}
+    entorno["PWD"] = str(pathlib.Path.cwd())
+    entorno.pop("OPENCODE_CONFIG_DIR", None)
+    entorno["OPENCODE_CONFIG"] = str(config_path)
+    entorno["OPENCODE_CONFIG_CONTENT"] = json.dumps(config)
+    entorno.setdefault("CUY_LIMITE_USD", "10")
+    return entorno
 
 
 def main() -> int:
     cargar_env()
-    os.environ.update(BLINDAJE)
-    os.environ.setdefault("CUY_LIMITE_USD", "10")
+    if sys.argv[1:2] == ["tarea"]:
+        from tareas import main as tarea
+        return tarea(sys.argv[2:])
+    if sys.argv[1:2] == ["inicio"]:
+        from presentacion import inicio
+        return inicio()
+    if sys.argv[1:2] == ["demo"]:
+        from presentacion import demo
+        return demo(sys.argv[2:])
+    if sys.argv[1:2] == ["doctor"]:
+        from diagnostico import main as doctor
+        return doctor(sys.argv[2:])
+    if sys.argv[1:2] == ["gasto"]:
+        from gasto import main as gasto
+        return gasto()
 
-    binario = buscar_binario()
+    try:
+        binario = buscar_binario()
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"No se pudo seleccionar el ejecutable: {exc}", file=sys.stderr)
+        return 1
     if not binario:
         print("OpenCode no está instalado. Corré:")
         print(f"    {'python' if ES_WINDOWS else 'python3'} instalar.py")
         return 1
 
     try:
-        # `shell=True` en Windows porque el envoltorio de npm es un .cmd, que no se
-        # puede ejecutar directamente.
-        return subprocess.call([str(binario)] + sys.argv[1:], shell=ES_WINDOWS)
+        return subprocess.call([str(binario)] + sys.argv[1:], env=entorno_agente())
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"No se pudo iniciar Cuy: {exc}", file=sys.stderr)
+        if getattr(exc, "winerror", None) in (193, 216):
+            print("Windows rechazó el formato o la arquitectura del agente. "
+                  "Ejecutá: python instalar.py --reparar-motor", file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
         return 130
 

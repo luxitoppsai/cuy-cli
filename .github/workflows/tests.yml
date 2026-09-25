@@ -1,0 +1,28 @@
+name: Pruebas
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  controles:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: python -m unittest discover tests
+      - run: npm test
+      - run: npm ci --no-fund --no-audit
+      - name: Contrato del motor fijado
+        shell: bash
+        run: CUY_TEST_BINARIO="$PWD/node_modules/opencode-ai/bin/opencode.exe" python -m unittest discover -s tests -p test_motor.py

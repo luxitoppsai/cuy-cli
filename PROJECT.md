@@ -9,7 +9,10 @@ equipo del trabajo. Nombre provisional.
 - Bugs y aprendizajes: `luxitopp-vault/10-Projects/cuy-cli/Bugs-and-Learnings/`
 
 ## Estado
-RFC-001 **aceptado**. Fase 0 (spike) en curso — resultados en `spike/RESULTADOS.md`.
+Prototipo reforzado: controles locales, flujos entender/corregir/revisar y demo visual.
+Pruebas de contrato con el motor y corrección aislada. Pendiente: piloto
+con modelos reales y gobierno del servidor. Estado actual en `README.md`; siguiente etapa
+en `docs/EVOLUCION.md`. Los spikes conservan observaciones históricas.
 
 ## Repo
 - Local: `~/Documents/Luis_projects/cuy-cli`

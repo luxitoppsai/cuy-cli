@@ -7,14 +7,16 @@ Uso::
     python gasto.py
 """
 
-import json
 import os
 import pathlib
+import re
+
+from configuracion import numero_entorno, leer_gasto
 from datetime import datetime
 
 CARPETA = pathlib.Path.home() / ".local" / "share" / "cuy-cli"
 GASTO = pathlib.Path(os.environ.get("CUY_GASTO", CARPETA / "gasto.json"))
-LIMITE = float(os.environ.get("CUY_LIMITE_USD", "10"))
+LIMITE = numero_entorno("CUY_LIMITE_USD", 10)
 
 
 def main() -> int:
@@ -23,7 +25,11 @@ def main() -> int:
         print("Se empieza a contar al usar el agente.")
         return 0
 
-    datos = json.loads(GASTO.read_text())
+    try:
+        datos = leer_gasto(GASTO)
+    except (OSError, ValueError) as exc:
+        print(f"No se puede leer el gasto; no se asumirá cero: {exc}")
+        return 1
     mes = datetime.now().strftime("%Y-%m")
     actual = float(datos.get(mes, 0))
 
@@ -33,9 +39,9 @@ def main() -> int:
         lleno = int(min(porcentaje, 100) / 5)
         print(f"  [{'█' * lleno}{'·' * (20 - lleno)}] {porcentaje:.0f}%")
         if actual >= LIMITE:
-            print("  Tope alcanzado: el agente no ejecuta herramientas hasta el mes que viene.")
+            print("  Tope alcanzado: el agente bloquea nuevas inferencias y herramientas hasta el mes que viene.")
 
-    otros = {k: v for k, v in datos.items() if k != mes}
+    otros = {k: v for k, v in datos.items() if k != mes and re.fullmatch(r"\d{4}-\d{2}", k)}
     if otros:
         print("\nMeses anteriores:")
         for k in sorted(otros, reverse=True)[:6]:

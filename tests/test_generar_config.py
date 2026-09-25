@@ -106,7 +106,7 @@ def _ref(endpoint):
 class RuteoPorRol(unittest.TestCase):
     """D3 del RFC: cada rol usa el modelo que le corresponde, sin tocar el harness."""
 
-    def test_ejecutar_usa_sonnet_y_planificar_haiku(self):
+    def test_ejecutar_y_planificar_usan_sonnet(self):
         """Opus queda fuera de los roles: se elige a mano cuando la tarea lo pide."""
         agentes = gc.construir_agentes([
             "databricks-claude-haiku-4-5",
@@ -114,16 +114,16 @@ class RuteoPorRol(unittest.TestCase):
             "databricks-claude-opus-4-1",
         ], _ref)
         self.assertEqual(agentes["build"]["model"], f"{gc.PROVEEDOR}/databricks-claude-sonnet-4-5")
-        self.assertEqual(agentes["plan"]["model"], f"{gc.PROVEEDOR}/databricks-claude-haiku-4-5")
+        self.assertEqual(agentes["plan"]["model"], f"{gc.PROVEEDOR}/databricks-claude-sonnet-4-5")
 
     def test_los_subagentes_de_lectura_usan_el_barato(self):
         agentes = gc.construir_agentes(["databricks-gemma-3-12b", "databricks-gpt-oss-120b"], _ref)
-        for rol in ("explore", "scout"):
+        for rol in ("explore",):
             self.assertEqual(agentes[rol]["model"], f"{gc.PROVEEDOR}/databricks-gemma-3-12b")
 
-    def test_con_un_solo_modelo_no_rutea(self):
-        """Repartir roles entre un único modelo no aporta nada."""
-        self.assertEqual(gc.construir_agentes(["databricks-gemma-3-12b"], _ref), {})
+    def test_con_un_solo_modelo_conserva_restricciones(self):
+        """Los permisos siguen aplicándose aunque solo haya un modelo."""
+        self.assertEqual(gc.construir_agentes(["databricks-gemma-3-12b"], _ref)["plan"]["permission"]["*"], "deny")
 
 class PreferenciasDeModelo(unittest.TestCase):
     """Sonnet de principal y Haiku de auxiliar; Opus queda para elegirlo a mano."""
@@ -322,7 +322,7 @@ class ViaNativaDeAnthropic(unittest.TestCase):
 
     def test_los_roles_apuntan_al_proveedor_nativo(self):
         agentes = self._solo_claude()["agent"]
-        for rol in ("build", "plan", "explore", "scout"):
+        for rol in ("build", "plan", "explore"):
             self.assertTrue(agentes[rol]["model"].startswith(gc.PROVEEDOR_CLAUDE + "/"))
 
     def test_un_workspace_mixto_usa_los_dos_proveedores(self):

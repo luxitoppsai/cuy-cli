@@ -15,6 +15,7 @@ Sin dependencias: corre con Python pelado en un equipo recién formateado.
 """
 
 import argparse
+import copy
 import json
 import os
 import pathlib
@@ -22,6 +23,8 @@ import re
 import sys
 import urllib.error
 import urllib.request
+
+from configuracion import escribir_json, numero_entorno, validar_host, cargar_archivo_env, validar_token
 
 RAIZ = pathlib.Path(__file__).resolve().parent
 
@@ -73,7 +76,19 @@ def listar_endpoints(host: str, token: str) -> list[dict]:
     :returns: Endpoints de chat, ya filtrados.
     :raises SystemExit: Si el workspace no responde o rechaza el token.
     """
+    host = validar_host(host)
+    token = validar_token(token)
     codigo, cuerpo = _pedir(f"{host}/api/2.0/serving-endpoints", token)
+    if codigo == 401:
+        sys.exit(
+            "Databricks rechazó la autenticación (HTTP 401) al listar Model Serving.\n"
+            "Revisá que el token sea válido, no haya expirado y corresponda al workspace indicado.\n"
+            "DATABRICKS_TOKEN del entorno tiene prioridad sobre .env: revisá esa variable primero.\n"
+            "Podés reemplazar el token en .env o usar instalar.py --renovar-token."
+        )
+    if codigo == 403:
+        sys.exit("Databricks denegó el listado de Model Serving (HTTP 403). "
+                 "Revisá los permisos de la identidad sobre este workspace y sus endpoints.")
     if codigo != 200:
         detalle = cuerpo.get("message") or cuerpo.get("raw") or cuerpo
         sys.exit(f"No se pudo listar endpoints (HTTP {codigo}): {str(detalle)[:300]}")
@@ -184,7 +199,7 @@ def detectar_anthropic(host: str, token: str, endpoints: list[str]) -> dict | No
     sonda = {"max_tokens": 16, "messages": [{"role": "user", "content": "di: ok"}]}
     for nombre_auth, construir in AUTENTICACIONES:
         cabeceras = construir(token)
-        for candidato in nombres_anthropic(endpoints[0]):
+        for candidato in dict.fromkeys(n for endpoint in endpoints for n in nombres_anthropic(endpoint)):
             codigo, _ = _pedir_anthropic(host, cabeceras, {**sonda, "model": candidato})
             if codigo != 200:
                 continue
@@ -260,17 +275,21 @@ def detectar_forma(host: str, token: str, nombre: str) -> str:
 
     :returns: ``"string"``, ``"bloques"`` o ``"desconocido"``.
     """
-    url = f"{host}/serving-endpoints/{nombre}/invocations"
-    cuerpo = {"messages": [{"role": "user", "content": PREGUNTA_SONDA}], "max_tokens": 2000}
+    # Misma ruta y selector que usa @ai-sdk/openai-compatible en ejecución.
+    url = f"{host}/serving-endpoints/chat/completions"
+    cuerpo = {"model": nombre, "messages": [{"role": "user", "content": PREGUNTA_SONDA}], "max_tokens": 2000}
 
     codigo, fragmentos = _pedir_stream(url, token, cuerpo)
     if codigo == 200 and fragmentos:
+        valido = False
         for fragmento in fragmentos:
             for eleccion in fragmento.get("choices", []):
                 contenido = (eleccion.get("delta") or {}).get("content")
                 if isinstance(contenido, list):
                     return "bloques"
-        return "string"
+                valido |= isinstance(contenido, str) or bool((eleccion.get("delta") or {}).get("tool_calls"))
+        if valido:
+            return "string"
 
     # Si el endpoint no hace streaming, se cae a la forma no-streaming antes de
     # descartarlo: no poder sondear no es lo mismo que estar roto.
@@ -281,7 +300,7 @@ def detectar_forma(host: str, token: str, nombre: str) -> str:
         contenido = respuesta["choices"][0]["message"].get("content")
     except (KeyError, IndexError):
         return "desconocido"
-    return "bloques" if isinstance(contenido, list) else "string"
+    return "bloques" if isinstance(contenido, list) else "string" if isinstance(contenido, str) else "desconocido"
 
 
 def _nombre_legible(endpoint: str) -> str:
@@ -323,7 +342,7 @@ def _tamano_estimado(endpoint: str) -> float:
 # En OpenCode gana la última regla que coincide, así que va de lo general a lo específico.
 PERMISOS_BASE = {
     # Leer, buscar y navegar el proyecto no necesita aprobación.
-    "*": "allow",
+    # Sin wildcard global: preserva las restricciones nativas por agente.
     # Salir del proyecto y traer cosas de internet sí: son la vía de escape típica.
     "external_directory": "ask",
     "webfetch": "ask",
@@ -333,16 +352,16 @@ PERMISOS_BASE = {
     "bash": {
         # Por defecto se pregunta: la lista de abajo habilita lo cotidiano.
         "*": "ask",
-        # Lectura e inspección: sin riesgo.
+        # Comandos habituales de inspección; estos patrones no son un sandbox.
         "ls *": "allow", "cat *": "allow", "head *": "allow", "tail *": "allow",
-        "grep *": "allow", "rg *": "allow", "find *": "allow", "wc *": "allow",
+        "grep *": "allow", "rg *": "allow", "wc *": "allow",
         "pwd": "allow", "which *": "allow", "echo *": "allow",
         # Git de solo lectura.
         "git status*": "allow", "git diff*": "allow", "git log*": "allow",
         "git show*": "allow", "git branch": "allow",
-        # Correr pruebas y linters es el ciclo normal de trabajo.
-        "pytest*": "allow", "python3 -m pytest*": "allow", "python3 -m unittest*": "allow",
-        "npm test*": "allow", "npm run *": "allow", "make *": "allow",
+        # Las pruebas también ejecutan código del repo: requieren autorización.
+        "pytest*": "ask", "python3 -m pytest*": "ask", "python3 -m unittest*": "ask",
+        "npm test*": "ask", "npm run *": "ask", "make *": "ask",
         # Irreversible o fuera del proyecto: se bloquea, no se pregunta.
         "rm -rf *": "deny", "rm -r *": "deny",
         "sudo *": "deny",
@@ -364,7 +383,7 @@ def construir_permisos() -> dict:
 
     :returns: Bloque ``permission`` para la configuración.
     """
-    return dict(PERMISOS_BASE)
+    return copy.deepcopy(PERMISOS_BASE)
 
 
 # Nombre propio del proveedor. **No puede ser "databricks"**: ese id ya existe en el
@@ -390,7 +409,7 @@ PREFERIDOS_AUXILIAR = ["haiku"]
 
 # Dólares por DBU. Es el convenio estándar de Model Serving, pero **depende del
 # contrato**: cada empresa negocia el suyo y varía por nube y región.
-USD_POR_DBU = float(os.environ.get("CUY_USD_POR_DBU", "0.07"))
+USD_POR_DBU = numero_entorno("CUY_USD_POR_DBU", 0.07)
 
 # Tarifas en **DBU por millón de tokens**, que es como las publica Databricks. Las de
 # Claude son las reales del workspace, y vale saber que **no coinciden con la lista de
@@ -446,38 +465,37 @@ def elegir(candidatos: list[str], preferidos: list[str], respaldo) -> str | None
     for preferido in preferidos:
         coincidencias = [c for c in candidatos if preferido in c.lower()]
         if coincidencias:
-            # Entre varias versiones de la misma familia, la de nombre mayor suele ser
-            # la más nueva (sonnet-4-5 sobre sonnet-4).
-            return sorted(coincidencias)[-1]
+            # Orden numérico, para que 4-10 no quede antes que 4-9.
+            return max(coincidencias, key=lambda n: tuple(int(x) for x in re.findall(r"\d+", n)))
     return respaldo(candidatos)
+
+
+def permisos_lectura() -> dict:
+    return {"*": "deny", "read": "allow", "glob": "allow", "grep": "allow",
+            "list": "allow", "external_directory": "ask", "question": "allow"}
 
 
 def construir_agentes(por_tamano: list[str], ref) -> dict:
     """Asigna un modelo a cada agente según su rol (D3 del RFC).
 
-    OpenCode liga un modelo a cada agente de forma nativa, así que el ruteo por rol es
-    configuración y no hace falta tocar el harness. El criterio: planificar y explorar
-    son tareas de lectura y razonamiento donde un modelo barato alcanza; ejecutar
-    —leer, editar, correr comandos— es donde conviene el modelo capaz.
+    Planificación y ejecución usan el modelo capaz; explorar usa la preferencia
+    económica. La configuración de permisos de lectura es explícita incluso cuando
+    solo existe un modelo. La selección por nombre requiere evaluación posterior.
 
     :param por_tamano: Endpoints usables, de menor a mayor capacidad estimada.
     :param ref: Función que traduce un endpoint a ``proveedor/modelo``.
     :returns: Bloque ``agent`` para la config, o ``{}`` si no hay con qué decidir.
     """
-    if len(por_tamano) < 2:
+    if not por_tamano:
         return {}
     capaz = elegir(por_tamano, PREFERIDOS_PRINCIPAL, lambda c: c[-1])
     barato = elegir(por_tamano, PREFERIDOS_AUXILIAR, lambda c: c[0])
-    if capaz == barato:
-        barato = por_tamano[0]
+    lectura = permisos_lectura()
     return {
-        # Ejecuta y edita: es donde más pesa la capacidad del modelo.
-        "build": {"model": ref(capaz)},
-        # Planifica sin permiso de editar ni ejecutar (lo trae OpenCode por defecto).
-        "plan": {"model": ref(barato)},
-        # Subagentes de solo lectura: explorar y buscar no justifican el modelo caro.
-        "explore": {"model": ref(barato)},
-        "scout": {"model": ref(barato)},
+        "build": {"model": ref(capaz), "steps": 30},
+        "plan": {"model": ref(capaz), "permission": copy.deepcopy(lectura), "steps": 15},
+        "explore": {"model": ref(barato), "mode": "subagent",
+                    "permission": copy.deepcopy(lectura), "steps": 15},
     }
 
 
@@ -541,11 +559,13 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict,
     :param anthropic: Lo que devolvió :func:`detectar_anthropic`, o ``None``.
     :returns: Config lista para escribir.
     """
+    host = validar_host(host)
     por_anthropic = (anthropic or {}).get("modelos", {})
     usables = {
         e["name"]: detalles[e["name"]]
         for e in endpoints
-        if e["name"] in por_anthropic or detalles.get(e["name"], {}).get("forma") != "bloques"
+        if e["name"] in detalles and (e["name"] in por_anthropic
+            or detalles[e["name"]].get("forma") == "string")
     }
 
     nativos = {n: i for n, i in usables.items() if n in por_anthropic}
@@ -616,28 +636,9 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict,
     return config
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--host", help="URL del workspace (o DATABRICKS_HOST)")
-    parser.add_argument("--salida", default="opencode.json", help="Archivo a escribir")
-    parser.add_argument("--rapido", action="store_true", help="No sondear límites")
-    args = parser.parse_args()
-
-    env = RAIZ / ".env"
-    if env.exists():
-        for linea in env.read_text().splitlines():
-            if "=" in linea and not linea.strip().startswith("#"):
-                clave, valor = linea.split("=", 1)
-                os.environ.setdefault(clave.strip(), valor.strip())
-
-    token = os.environ.get("DATABRICKS_TOKEN")
-    if not token:
-        sys.exit("Falta DATABRICKS_TOKEN (ponelo en .env o en el entorno).")
-    host = (args.host or os.environ.get("DATABRICKS_HOST", "")).rstrip("/")
-    if not host:
-        sys.exit("Falta el host: pasá --host o definí DATABRICKS_HOST.")
-
-    print(f"Workspace: {host}\n")
+def descubrir_config(host: str, token: str, rapido: bool = False) -> dict:
+    """Descubre solo modelos verificados; no confunde fallo de sondeo con éxito."""
+    host = validar_host(host)
     endpoints = listar_endpoints(host, token)
     print(f"{len(endpoints)} endpoints de chat listos.\n")
 
@@ -652,7 +653,7 @@ def main() -> int:
     detalles = {}
     for e in endpoints:
         nombre = e["name"]
-        limite = SALIDA_POR_DEFECTO if args.rapido else sondear_limite(host, token, nombre)
+        limite = SALIDA_POR_DEFECTO if rapido else sondear_limite(host, token, nombre)
         if anthropic and nombre in anthropic["modelos"]:
             # Por la vía nativa los bloques son parte del contrato: no hay que sondear
             # la forma, y sondearla descartaría el modelo por algo que no es un problema.
@@ -661,15 +662,35 @@ def main() -> int:
             continue
         forma = detectar_forma(host, token, nombre)
         detalles[nombre] = {"forma": forma, "limite": limite}
-        marca = "descartado (devuelve bloques)" if forma == "bloques" else f"salida<={limite}"
+        marca = f"salida<={limite}" if forma == "string" else "excluido: compatibilidad no verificada"
         print(f"  {nombre:45s} {forma:12s} {marca}")
 
-    config = construir_config(host, endpoints, detalles, anthropic)
+    return construir_config(host, endpoints, detalles, anthropic)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--host", help="URL del workspace (o DATABRICKS_HOST)")
+    parser.add_argument("--salida", default="opencode.json", help="Archivo a escribir")
+    parser.add_argument("--rapido", action="store_true", help="No sondear límites")
+    args = parser.parse_args()
+
+    cargar_archivo_env(RAIZ / ".env")
+
+    token = os.environ.get("DATABRICKS_TOKEN")
+    if not token:
+        sys.exit("Falta DATABRICKS_TOKEN (ponelo en .env o en el entorno).")
+    host = (args.host or os.environ.get("DATABRICKS_HOST", "")).rstrip("/")
+    if not host:
+        sys.exit("Falta el host: pasá --host o definí DATABRICKS_HOST.")
+
+    print(f"Workspace: {host}\n")
+    config = descubrir_config(host, token, args.rapido)
     usables = sum(len(p["models"]) for p in config["provider"].values())
     if not usables:
-        sys.exit("\nNingún endpoint es usable: todos devuelven bloques en vez de string.")
+        sys.exit("\nNingún endpoint es usable: no se pudo verificar compatibilidad con ningún modelo.")
 
-    pathlib.Path(args.salida).write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
+    escribir_json(pathlib.Path(args.salida), config)
     print(f"\nEscrito {args.salida} con {usables} modelo(s).")
     print(f"  principal : {config.get('model')}")
     print(f"  auxiliar  : {config.get('small_model')}")
@@ -679,4 +700,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (ValueError, OSError) as exc:
+        raise SystemExit(f"No se pudo completar: {exc}") from None
