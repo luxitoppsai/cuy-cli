@@ -26,3 +26,6 @@ bin/
 
 # Binarios preparados para releases
 dist-release/
+
+# Revisión cruzada entre agentes: conversación de trabajo, no documentación
+REVISION.md

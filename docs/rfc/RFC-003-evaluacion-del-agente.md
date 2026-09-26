@@ -1,7 +1,7 @@
 ---
 rfc: RFC-003
 titulo: Evaluación del agente — medir si la herramienta sirve
-estado: borrador
+estado: aceptado
 fecha: 2026-09-25
 proyecto: cuy-cli
 constitucion: 1.0.0
@@ -9,7 +9,7 @@ constitucion: 1.0.0
 
 # RFC-003 — Evaluación del agente
 
-> **Estado: borrador.** No se programa hasta que esté `aceptado`.
+> **Estado: aceptado por el dueño el 2026-09-25.** Implementación por hitos; las corridas reales se reportan separadas de los tests simulados.
 
 ## 1. Contexto y problema
 
@@ -46,7 +46,7 @@ Este RFC existe para aprovechar eso antes de construir nada más.
 Poder correr un comando y obtener tres números comparables entre corridas:
 
 ```
-$ python evaluar.py
+$ python evaluar.py --presupuesto-usd 1
 10 casos · sonnet-4-5 · 2026-09-25T14:02
 
   resueltos      7/10  (70%)
@@ -124,9 +124,10 @@ elimina la fuga por construcción (**P6**, fallar cerrado).
 | `resuelto` | `estado: "verificada"` **y** ningún archivo intocable modificado |
 | `sin_verificar` | El agente terminó pero la prueba sigue en rojo |
 | `test_modificado` | La prueba pasa porque el agente la cambió |
-| `sin_pasos` | Agotó el límite de pasos |
+| `sin_pasos` | Reservado para una señal explícita del motor de detención por límite; contar pasos no basta |
 | `sin_cambios` | Terminó sin tocar ningún archivo |
-| `error` | El motor falló, o se agotó el tiempo |
+| `error` | Fallo de preparación, motor o inspección; fase y código distinguen la causa sin atribuir infraestructura al modelo |
+| `no_ejecutado` | Caso previsto que no se inició; excluido del denominador de resolución |
 
 **`test_modificado` es la categoría que más importa.** Un agente al que se le pide poner
 una prueba en verde tiene un atajo evidente: borrarla, vaciarla, o hacer que la aserción sea
@@ -145,13 +146,43 @@ el comportamiento típico.
 Cada informe registra la configuración que lo produjo —modelos por rol, versión del
 binario, fecha— porque un número sin su configuración no se puede comparar con nada.
 
-### 4.5 Estructura
+### 4.5 Presupuesto y costos parciales
+
+Decisiones acordadas con el dueño el 2026-09-25:
+
+- La corrida real exige un presupuesto máximo explícito en USD; no se intenta adivinar
+  su costo previo. Se mantiene USD 0,07/DBU como conversión de referencia, no contractual.
+- El presupuesto de evaluación se aplica además del mensual, sin desactivarlo. Se
+  comprueba entre llamadas al modelo: no es un techo duro, porque la llamada en curso
+  puede excederlo. Al alcanzar cualquiera de los dos se conserva el informe parcial.
+- Si falta el costo de algún paso, el importe conocido se presenta como **total parcial**,
+  con cantidad de pasos contabilizados y sin costo. Si ninguno tiene costo válido,
+  el importe es `null`, no cero. No se publica una mediana completa con datos incompletos.
+- Ante contabilidad incompleta se conserva el resultado y se detienen nuevas inferencias
+  de evaluación: un subtotal conocido no permite garantizar el presupuesto restante.
+
+### 4.6 Señal del límite de pasos
+
+Revisión del motor integrado: `session/prompt.ts` calcula `isLastStep = step >= maxSteps`
+y agrega `MAX_STEPS_PROMPT` al mensaje. Ese punto no publica un motivo estructurado de
+agotamiento ni impone por sí mismo un corte del bucle. El evento `step_finish` expone el
+motivo de finalización del modelo; no acredita que el motor haya detenido la tarea por
+su límite de pasos. Un motivo `length` tampoco significa agotamiento de pasos.
+
+Por ahora, registrar pasos observados y límite configurado; no inferir `sin_pasos` de
+alcanzar 30 ni de que el modelo diga que agotó sus pasos. Una tarea inconclusa conserva
+la categoría observable (`sin_verificar` o `error`, según corresponda). La categoría
+`sin_pasos` queda reservada hasta disponer de un corte efectivo con motivo estructurado
+comprobado mediante un test de integración. No se amplía este RFC con un cambio del motor.
+
+### 4.7 Estructura
 
 ```
 evaluacion/
   casos/NNN-slug/{caso.json,proyecto/}
-  resultados/AAAA-MM-DDTHH-MM.json
 evaluar.py
+# Fuera del repositorio:
+~/.local/share/cuy-cli/evaluaciones/ID.json
 ```
 
 `evaluar.py` reutiliza `tareas.correr_tarea`: evaluar es correr el producto, no una versión
@@ -192,22 +223,36 @@ como el resto del repo (**P9**).
 | RF-005 | El informe **debe** registrar la configuración que lo produjo: modelo por rol, versión del binario y fecha. |
 | RF-006 | El informe **debe** reportar tasa de resolución, costo total, costo mediano, duración total y duración mediana. |
 | RF-007 | El runner **debe** aceptar una configuración de modelos alternativa para comparar sin tocar la del usuario. |
-| RF-008 | El runner **debe** estimar el costo antes de empezar y pedir confirmación si supera un umbral. |
+| RF-008 | Una corrida real **debe** exigir un presupuesto máximo explícito, adicional al mensual, y comprobarlo entre inferencias; debe advertir que una llamada en curso puede excederlo. |
 | RF-009 | El runner **debe** detenerse si el presupuesto mensual se agota a mitad de la corrida, dejando el informe parcial escrito. |
-| RF-010 | Un caso que falla **no debe** interrumpir la corrida. |
+| RF-010 | Un fallo de caso con contabilidad completa, o local de preparación demostrado antes de intentar el motor, **no debe** interrumpir los demás casos. Fallos globales o de causa no clasificable detienen la corrida; no se atribuyen al modelo. |
 | RF-011 | El runner **no debe** dejar residuos en el repositorio del usuario ni en su `opencode.json`. |
+| RF-012 | El informe **debe** conservar costos conocidos aun si falla la inspección. Sin costos acreditados usa `null`; antes de intentar el motor puede acreditar cero. Un intento iniciado o incierto con contabilidad incompleta detiene nuevas inferencias y muestra total parcial, también por grupo. |
+| RF-013 | El runner **no debe** clasificar `sin_pasos` sin una señal estructurada de corte efectivo del motor; debe registrar pasos observados y límite configurado. |
+| RF-014 | Cada caso **debe** declarar grupo. El informe **debe** incluir las cinco métricas por grupo y total; grupos con costos desconocidos muestran total parcial. |
+| RF-015 | Los casos no iniciados **deben** figurar como `no_ejecutado`, fuera del denominador de resolución; errores de preparación se identifican y no cuentan como fallos del modelo. |
+| RF-016 | `tareas.py` **debe** informar fase, código de motivo y límite efectivo. La clasificación no depende del texto humano; comparación de integridad imposible produce error, modificación comprobada prevalece aun ante error del motor. |
 
 ## 8. Criterios de aceptación
 
 | ID | Criterio |
 |---|---|
-| CA-001 | Con diez casos versionados, `python evaluar.py` produce un informe con las seis métricas de RF-006. |
+| CA-001 | Con diez casos versionados, `python evaluar.py --presupuesto-usd 1` produce un informe con las cinco métricas de RF-006. |
 | CA-002 | Un caso cuyo proyecto ya viene arreglado se clasifica `resuelto`; uno imposible, `sin_verificar`. |
 | CA-003 | Un agente simulado que borra el archivo de prueba se clasifica `test_modificado`, no `resuelto`. |
 | CA-004 | El repositorio de un caso materializado no contiene el arreglo en ninguna parte de su historia. |
 | CA-005 | Dos corridas con configuraciones distintas producen informes comparables campo a campo. |
 | CA-006 | Una corrida interrumpida deja un informe parcial válido con los casos ya completados. |
 | CA-007 | Después de una corrida, `git status` del repositorio del usuario no muestra cambios. |
+| CA-008 | Sin presupuesto explícito, una corrida real no inicia inferencias; al alcanzar el presupuesto de corrida o mensual no inicia la siguiente y conserva un informe parcial. |
+| CA-009 | Con un paso de costo válido y otro ausente, el informe muestra total parcial y ambos conteos; con todos ausentes muestra importe `null`; no inicia nuevas inferencias. |
+| CA-010 | Alcanzar 30 pasos, recibir `length` o leer una afirmación del modelo no produce por sí solo `sin_pasos`. |
+| CA-011 | Fallo local de manifiesto/copia previo al motor continúa con cero acreditado; lanzamiento incierto sin contabilidad corta; presupuesto/configuración global bloquean nuevos casos. |
+| CA-012 | Un fallo de infraestructura o causa no clasificable detiene la corrida; los restantes figuran no ejecutados y no se atribuyen al modelo. Si falla persistencia solo se garantiza el último informe guardado. |
+| CA-013 | Grupos explícitos reportan agregados correctos: costos ausentes → `null`, ceros acreditados → cero, mezcla → total parcial sin mediana completa. |
+| CA-014 | Raíz inválida no se clasifica como modificación; borrar un intocable dentro de raíz válida sí, incluso seguido de error. |
+| CA-015 | Cambiar el mensaje humano no altera `sin_cambios`; código de motivo y límite provienen del flujo real de tareas. |
+| CA-016 | Presupuesto de evaluación inválido permite construir el plugin pero bloquea en el hook antes de invocar al proveedor. |
 
 ## 9. Riesgos
 
@@ -216,7 +261,7 @@ como el resto del repo (**P9**).
 | **El agente hace trampa con la prueba** | RF-003 y CA-003. Es el riesgo principal: sin esto la métrica mide lo contrario de lo que dice. |
 | **Contaminación**: los casos salen de un repo público que el modelo pudo ver | Se documenta como límite. El repo de un solo commit evita la fuga por `git`, no la memorización. Los casos de repos privados del trabajo son más confiables y no se versionan acá. |
 | **Muestra chica**: diez casos dan mucho ruido | Se reporta el número absoluto además del porcentaje —"7/10", no "70%"— para no sugerir precisión que no hay. El conjunto crece con casos reales. |
-| **Evaluar cuesta plata** | RF-008 y RF-009. Una corrida estimada en $0.50–$2 consume un quinto del tope mensual: no puede correrse a ciegas. |
+| **Evaluar cuesta plata** | RF-008 y RF-009. Se exige máximo explícito por corrida además del mensual; no se presume un costo previo. |
 | **No determinismo del modelo** | Se registra la variación entre corridas de la misma configuración. No se promete reproducibilidad exacta. |
 | **El conjunto se vuelve el objetivo** | Diez casos no son el producto. Se revisa el conjunto cuando la tasa supere el 80%: a esa altura mide poco. |
 
@@ -224,22 +269,48 @@ como el resto del repo (**P9**).
 
 | Hito | Contenido | Demostrable |
 |---|---|---|
-| **H1** | Materialización de casos y clasificación, con tres casos | `evaluar.py --seco` clasifica sin gastar un token |
+| **H1** | Materialización de casos y clasificación, con tres casos | `evaluar.py --seco` valida bases sin inferencia; clasificación probada con motor simulado |
 | **H2** | Corrida real y informe | El comando de §2 sobre tres casos |
 | **H3** | Diez casos derivados de arreglos reales | Primera cifra de referencia del proyecto |
-| **H4** | Comparación entre configuraciones | Responder si Haiku en `explore` pierde algo |
+| **H4** | Comparación entre configuraciones | Comparar el modelo principal con idéntico conjunto y parámetros efectivos |
 
 H1 es MVP: clasificar bien sin gastar es lo que hace confiable todo lo demás.
 
-## 11. Preguntas abiertas
+## 11. Decisiones y preguntas pendientes
 
-1. **¿De dónde salen los diez casos?** La historia de cuy-cli tiene arreglos reales con
-   prueba —el `NameError` del instalador, los hooks que no existían, el sondeo que aprobaba
-   de más— pero el repo es público. Los repos del trabajo son mejores casos y no se pueden
-   versionar acá. Posible respuesta: los públicos como conjunto base versionado, y un
-   `CUY_CASOS` que apunte a un conjunto privado.
-2. **¿Cuántos pasos se le dan a un caso?** Hoy `corregir` usa 30. Si el límite es el que
-   determina la tasa, se está midiendo el límite y no el agente.
-3. **¿Se evalúa con el presupuesto activo o desactivado?** Con tope activo la corrida puede
-   cortarse a la mitad; sin tope puede gastar sin techo. Inclinación: tope propio de la
-   corrida, separado del mensual.
+1. **Procedencia decidida:** diez extracciones históricas versionadas y `--casos` para un
+   conjunto privado. **Pendiente:** representatividad y contaminación por disponibilidad
+   pública; el primer baseline real aún no existe.
+2. **Pasos:** se registra el límite efectivo que informa `tareas.py`. Hoy configura 30,
+   sin prometer un corte duro. **Pendiente:** medir el efecto del límite en resultados.
+3. **Presupuesto decidido:** máximo de corrida además del mensual, ambos activos.
+4. **Comparación inicial decidida:** modelo principal, mismo conjunto y parámetros efectivos.
+   **Pendiente:** evaluar subagentes requiere un flujo que delegue y queda fuera de esta enmienda.
+
+## Revisiones
+
+### Enmienda 1 — 2026-09-25
+
+Procedimiento acordado: `en-revision` si la enmienda espera aceptación. En este caso,
+**el dueño autorizó aplicar el alcance acordado («hazlo») tras el cierre bilateral en
+REVISION.md, antes de editar esta enmienda**. Se mantiene `aceptado` con este registro
+explícito; la aceptación original por sí sola no autorizaba el texto nuevo.
+Base histórica: HEAD `aec0ffc` (RFC original) y primera implementación aún no commiteada.
+
+Se aclaran fases y contabilidad (RF-010/RF-012), integridad, motivos estructurados y
+límites efectivos; se corrige cinco/seis. Se agregan explícitamente desglose por grupo y
+casos no ejecutados como comportamiento observable con RF/CA propios. H4 compara modelo
+principal: el flujo actual no delega a explore. No se habilita delegación en esta enmienda.
+
+El conjunto mantiene diez casos, reformulando dos objetivos por síntomas autosuficientes.
+Es un baseline de mecánica de edición y contratos, con grupos relacionados; no mide
+capacidad general de depuración. Su hash incluye contenido, objetivos y grupos.
+La primera comparación es exploratoria: sus diferencias son observaciones, no demuestran
+superioridad ni bastan por sí solas para adoptar una configuración. No comparar agregados
+de conjuntos distintos como si solo hubiera cambiado el modelo.
+
+§11: procedencia resuelta con extracciones históricas y opción --casos; siguen pendientes
+representatividad, contaminación pública y baseline real. El límite se registra desde
+la configuración efectiva y no se promete corte duro. Evaluar subagentes requiere otro
+flujo y queda pendiente. Si falla la escritura, se conserva solo la última versión
+persistida; no se garantiza actualización cuando el almacenamiento no funciona.
