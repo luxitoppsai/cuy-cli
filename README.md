@@ -138,6 +138,26 @@ inspeccionar los estados sin ejecutar tareas.
   fijada por un manifiesto local revisado. Exige `version` y un mapa `sha256` por nombre
   de artefacto (`cuy-darwin-arm64`, `cuy-windows-x64.exe`, etc.). No acepta `latest`.
 
+### VS Code Web en Azure Machine Learning
+
+Las instancias de cómputo Linux x86-64 usan el artefacto `cuy-linux-x64` de la release
+`v0.4.2`. Desde el terminal de VS Code Web, dentro del clon del proyecto, ejecutá:
+
+```sh
+python3 instalar.py --reparar-motor
+./cuy
+```
+
+El instalador descarga el binario, verifica su SHA-256 y no necesita Bun ni npm. Si solo
+querés comprobar el artefacto sin volver a configurar el workspace:
+
+```sh
+python3 instalar.py --reparar-motor --sin-compilar
+```
+
+La arquitectura esperada es `x86_64`; en una instancia ARM corresponde `cuy-linux-arm64`.
+El binario es nativo de Linux y no se puede ejecutar desde macOS para probarlo localmente.
+
 Las descargas se validan antes de reemplazar el ejecutable. No se publica un manifiesto
 con hashes inventados: quien construye la release debe producirlo y revisarlo. Un hash
 comprueba integridad respecto del manifiesto; no sustituye su procedencia confiable.
