@@ -1,11 +1,11 @@
 {
-  "version": "v0.4.1",
+  "version": "v0.4.2",
   "sha256": {
-    "cuy-darwin-arm64": "57ea83b85f227bc7aed208d47be88c9553e109e025f7a98cf46c1fcac42a8425",
-    "cuy-darwin-x64": "81d6ea17f8a1084aed41b293de8789d5e9e4b68f402ab9e7db19fc557dffd961",
-    "cuy-linux-arm64": "a37c6b0b8905a75e18b83b42daa03b4b661606f61577f675633389144b4d681b",
-    "cuy-linux-x64": "f61d85548c12dc6b451770aaaf041ecb33feb4eab994106d975c234d2f706744",
-    "cuy-windows-arm64.exe": "ad77dffd799504ba29c41cfe3fab0897c15b08c49e8edd10984ba668a74470ff",
-    "cuy-windows-x64.exe": "34727fc35f7df1d35b8a86fe7500129d70211ac85e0abd85306a2e6589ea205a"
+    "cuy-windows-x64.exe": "5b77f67373d043dbe7fbbab902d8b7c0544c5977ccd502e751c2a8104d0c9175",
+    "cuy-windows-arm64.exe": "c87c14d8c4d568954ade5f5e6e8f5e6507d4a8c18beaecca32d73f84429f7eee",
+    "cuy-darwin-arm64": "97228c2847e24279dfd66314cc15f9135960a5a59201f360dee1ea9240b9517b",
+    "cuy-darwin-x64": "7de247c7870432371d50cbfc37692f8ede107b0d027d8c11f7e3cce75dd9ae3f",
+    "cuy-linux-x64": "8ad0b8cbd81da3dedd31db14b307c69bbbf76c1fb1cc522e78e8db5110f22a2e",
+    "cuy-linux-arm64": "34231a54b46716057013668de0df35b6d498f47f3eb87347b8a955718adf0217"
   }
 }
