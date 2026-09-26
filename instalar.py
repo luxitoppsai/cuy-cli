@@ -474,6 +474,10 @@ def verificar(host: str, token: str, config: dict) -> bool:
 
 
 def main() -> int:
+    """Punto de entrada del instalador: deja cuy-cli listo en este equipo.
+
+    :returns: Código de salida; 0 si la instalación terminó y el motor respondió.
+    """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--host", help="URL del workspace de Databricks")
     parser.add_argument("--renovar-token", action="store_true", help="Reemplazar el token guardado en .env")

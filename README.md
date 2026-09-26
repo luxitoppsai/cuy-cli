@@ -164,7 +164,7 @@ build intenta exportar raíces del sistema en Windows. No desactives la validaci
 
 `scout` se retiró porque duplicaba `explore` y no tenía restricciones propias.
 La selección por nombre es una heurística: no constituye una evaluación de capacidad.
-Los límites de contexto y tarifas por familia también son valores configurados, no
+Los límites de contexto son valores operativos configurados y las tarifas tienen un alcance declarado; no son
 capacidades descubiertas del servidor.
 
 La política global no incluye `*: allow`: preserva restricciones nativas. Los roles de

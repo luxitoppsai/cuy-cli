@@ -22,9 +22,9 @@ export const Presupuesto = async ({ client }) => {
   };
   return {
     event: async ({ event }) => {
-      const costo = costoDelEvento(event);
-      if (!costo) return;
       try {
+        const costo = costoDelEvento(event);
+        if (!costo) return;
         const parte = event.properties.part;
         // El id del paso hace idempotente un evento repetido/reconectado.
         sumarGasto(costo, undefined, undefined, parte.id ? `${parte.sessionID}:${parte.id}` : undefined);
@@ -38,7 +38,7 @@ export const Presupuesto = async ({ client }) => {
       const costo = input.model?.cost;
       if (LIMITE_USD > 0 && (!costo || !Number.isFinite(costo.input) || !Number.isFinite(costo.output)
           || costo.input <= 0 || costo.output <= 0)) {
-        throw new Error("Modelo sin tarifa verificada. Configurá cost.input/output o desactivá explícitamente el presupuesto local con CUY_LIMITE_USD=0.");
+        throw new Error("Modelo sin tarifa configurada. Configurá cost.input/output o desactivá explícitamente el presupuesto local con CUY_LIMITE_USD=0.");
       }
     },
     "tool.execute.before": comprobar,

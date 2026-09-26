@@ -29,6 +29,12 @@ def seguro(valor) -> str:
 
 
 def panel(lineas: list[str], ancho=78) -> str:
+    """Encuadra un bloque de texto, recortándolo al ancho de la terminal.
+
+    :param lineas: Líneas a mostrar; se reparten en varias si no entran.
+    :param ancho: Ancho deseado, acotado entre 36 y 100 columnas.
+    :returns: El panel listo para imprimir.
+    """
     ancho = max(36, min(ancho, 100))
     dentro = ancho - 4
     salida = ["┌" + "─" * (ancho - 2) + "┐"]
@@ -42,6 +48,12 @@ def panel(lineas: list[str], ancho=78) -> str:
 
 
 def render_resultado(informe: dict, ancho=78) -> str:
+    """Convierte el informe de una tarea en el panel de texto que ve el usuario.
+
+    :param informe: Informe devuelto por :func:`tareas.correr_tarea`.
+    :param ancho: Ancho de la terminal.
+    :returns: El panel, sin códigos de color.
+    """
     estado, _ = ESTADOS.get(informe.get("estado"), ("ESTADO DESCONOCIDO", "33"))
     lineas = [f"cuy / {informe.get('flujo', 'tarea')}", "", estado]
     if informe.get("proyecto"):
@@ -92,6 +104,10 @@ def render_resultado(informe: dict, ancho=78) -> str:
 
 
 def mostrar_resultado(informe: dict) -> None:
+    """Imprime el informe de una tarea, con color solo si la salida es una terminal.
+
+    :param informe: Informe devuelto por :func:`tareas.correr_tarea`.
+    """
     texto = render_resultado(informe, shutil.get_terminal_size((78, 24)).columns)
     if sys.stdout.isatty() and "NO_COLOR" not in os.environ:
         estado, color = ESTADOS.get(informe.get("estado"), ("ESTADO DESCONOCIDO", "33"))
@@ -100,6 +116,13 @@ def mostrar_resultado(informe: dict) -> None:
 
 
 def inicio() -> int:
+    """Muestra la pantalla inicial: flujos disponibles y estado del entorno.
+
+    Incluye el gasto del mes y avisa si al modelo por defecto le faltan tarifas, que es
+    la condición que bloquea la inferencia cuando hay tope activo.
+
+    :returns: Código de salida, siempre 0.
+    """
     import cuy
     lineas = ["cuy", "Programar con un resultado que podés comprobar.", "", "ELEGÍ UN FLUJO", "",
               "01  ENTENDER   Mapa del código y referencias. Solo lectura.",
@@ -128,6 +151,10 @@ def inicio() -> int:
 
 
 def ejemplos() -> list[dict]:
+    """Informes de ejemplo para la demo, uno por estado posible.
+
+    :returns: Informes con la misma forma que los reales, sin haber corrido nada.
+    """
     base = {"id": "20260924-120000-demo", "proyecto": "/proyectos/inventario", "costo_usd": .0124,
             "duracion_s": 24.6, "informe": "~/.local/share/cuy-cli/tareas/<id>/resultado.json", "pruebas": [], "archivos": []}
     entender = {**base, "flujo": "entender", "estado": "entregada", "motivo": "Referencias comprobadas. Las conclusiones requieren revisión humana.", "entrega": {
@@ -146,6 +173,10 @@ def ejemplos() -> list[dict]:
 
 
 def html_demo(destino: Path) -> None:
+    """Escribe una página local con los cuatro estados de una tarea.
+
+    :param destino: Archivo HTML a escribir; se crean las carpetas que falten.
+    """
     tarjetas = ejemplos()
     panels = "\n".join(f'<section id="vista-{i}" class="terminal" {"hidden" if i else ""}><pre>{html.escape(render_resultado(r, 78))}</pre></section>' for i, r in enumerate(tarjetas))
     plantilla = Path(__file__).with_name("tema") / "demo.html"
@@ -154,6 +185,11 @@ def html_demo(destino: Path) -> None:
 
 
 def demo(argv=None) -> int:
+    """Punto de entrada de ``cuy demo``: muestra resultados sin consumir tokens.
+
+    :param argv: Argumentos de línea de comandos; ``None`` usa ``sys.argv``.
+    :returns: Código de salida.
+    """
     parser = argparse.ArgumentParser(description="Vista de ejemplo: no inicia el motor ni consume tokens.")
     parser.add_argument("--flujo", choices=["entender", "corregir", "revisar", "pendiente"], default="corregir")
     parser.add_argument("--html", type=Path, help="Guardar una vista interactiva local con los cuatro estados")

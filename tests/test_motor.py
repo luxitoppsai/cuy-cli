@@ -19,7 +19,10 @@ import generar_config as gc
 
 @unittest.skipUnless(os.environ.get("CUY_TEST_BINARIO"), "Requiere CUY_TEST_BINARIO para probar el motor real")
 class Motor(unittest.TestCase):
+    """Contrato con el binario real: permisos por agente, edición y tope de gasto."""
+
     def setUp(self):
+        """Levanta un proveedor SSE sintético y un proyecto temporal."""
         self.temp = tempfile.TemporaryDirectory(prefix="cuy-motor-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
@@ -29,10 +32,14 @@ class Motor(unittest.TestCase):
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
+            """Proveedor SSE sintético: responde como Databricks sin serlo."""
+
             def log_message(self, *_):
+                """Silencia el log del servidor para no ensuciar la salida del test."""
                 pass
 
             def do_POST(self):
+                """Devuelve un stream fijo de eventos con forma de respuesta real."""
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 owner.requests.append(body)
                 tools = [t["function"]["name"] for t in body.get("tools", [])]
@@ -71,6 +78,7 @@ class Motor(unittest.TestCase):
         self.addCleanup(self.server.shutdown)
 
     def entorno(self, agotado=False):
+        """Arma el entorno del motor, opcionalmente con el presupuesto agotado."""
         config = gc.construir_config("https://example.invalid", [{"name": "prueba"}], {"prueba": {"forma": "string", "limite": 1000}})
         config["provider"]["cuy"]["options"] = {"baseURL": f"http://127.0.0.1:{self.server.server_port}", "apiKey": "fake"}
         config["provider"]["cuy"]["models"]["prueba"]["cost"] = {"input": 3, "output": 15}
@@ -85,6 +93,7 @@ class Motor(unittest.TestCase):
         return env
 
     def ejecutar(self, agente="build", agotado=False):
+        """Corre el binario real contra el proveedor sintético y devuelve su salida."""
         env = self.entorno(agotado)
         return subprocess.run([os.environ["CUY_TEST_BINARIO"], "run", "--format", "json", "--agent", agente, "Escribe resultado.txt con prueba correcta."], cwd=self.root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=45)
 

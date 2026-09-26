@@ -2,7 +2,6 @@
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,7 +12,10 @@ import presentacion
 
 
 class Tareas(unittest.TestCase):
+    """Flujos de tarea: aislamiento, verificación y validación de la entrega."""
+
     def setUp(self):
+        """Crea un repositorio git temporal donde correr los flujos."""
         self.tmp = tempfile.TemporaryDirectory(prefix="cuy-flujos-")
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve()
@@ -30,12 +32,14 @@ class Tareas(unittest.TestCase):
         self.ejecutor = tareas.ejecutar_proceso
 
     def respuesta(self, carpeta, corregir=False):
+        """Devuelve la entrega JSON que simula la respuesta del agente."""
         if corregir:
             (carpeta / "app.py").write_text("valor = 2\n", encoding="utf-8")
         entrega = {"resumen": "Módulo revisado.", "referencias": [{"archivo": "app.py", "linea": 1, "explicacion": "Define el valor."}], "hallazgos": []}
         return json.dumps({"type": "text", "sessionID": "ses-demo", "part": {"id": "p1", "text": json.dumps(entrega)}})
 
     def motor(self, argv, carpeta, entorno, limite, entrada=None):
+        """Reemplaza la ejecución del motor por una respuesta fija."""
         if argv[0] != "motor-falso":
             return self.ejecutor(argv, carpeta, entorno, limite, entrada)
         cfg = json.loads(entorno["OPENCODE_CONFIG_CONTENT"])
@@ -45,6 +49,7 @@ class Tareas(unittest.TestCase):
         return 0, self.respuesta(carpeta, argv[-1] == "cuy-corregir"), False
 
     def correr(self, flujo="entender", pruebas=None):
+        """Corre un flujo completo con el motor fingido."""
         with patch.object(tareas, "ejecutar_proceso", side_effect=self.motor):
             return tareas.correr_tarea(flujo, "Objetivo", self.repo, Path("motor-falso"), self.env,
                                        self.root / "tareas", pruebas or [], 20)
@@ -128,6 +133,8 @@ class Tareas(unittest.TestCase):
 
 
 class Presentacion(unittest.TestCase):
+    """El informe se muestra sin interpretar escapes de terminal."""
+
     def test_terminal_no_interpreta_escapes_del_modelo(self):
         reporte = {"flujo": "revisar", "estado": "error", "motivo": "\x1b[2Jborra pantalla\u202etexto"}
         salida = presentacion.render_resultado(reporte, 40)

@@ -10,6 +10,13 @@ from urllib.parse import urlsplit
 
 
 def validar_host(valor: str) -> str:
+    """Normaliza y valida la URL de un workspace de Databricks.
+
+    :param valor: URL tal como la escribió el usuario.
+    :returns: La URL sin barra final.
+    :raises ValueError: Si no es HTTPS, o si trae credenciales, ruta, parámetros o
+        fragmento, que en una URL de workspace solo pueden venir de un error de copiado.
+    """
     valor = valor.strip().rstrip("/")
     url = urlsplit(valor)
     if (url.scheme != "https" or not url.hostname or url.username or url.password
@@ -21,6 +28,13 @@ def validar_host(valor: str) -> str:
 
 
 def numero_entorno(nombre: str, defecto: float) -> float:
+    """Lee una variable de entorno numérica, rechazando lo que no sirva para contar.
+
+    :param nombre: Nombre de la variable.
+    :param defecto: Valor a usar si no está definida.
+    :returns: El número leído.
+    :raises ValueError: Si no es un número finito y no negativo.
+    """
     try:
         valor = float(os.environ.get(nombre, defecto))
     except ValueError as exc:
@@ -91,6 +105,12 @@ def leer_env(ruta: Path) -> dict[str, str]:
 
 
 def cargar_archivo_env(ruta: Path) -> None:
+    """Vuelca un archivo dotenv al entorno sin pisar lo que ya esté definido.
+
+    Lo que el usuario exporta a mano manda sobre el archivo.
+
+    :param ruta: Archivo a cargar; si no existe no hace nada.
+    """
     for clave, valor in leer_env(ruta).items():
         os.environ.setdefault(clave, valor)
 

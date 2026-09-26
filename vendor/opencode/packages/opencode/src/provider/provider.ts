@@ -1,3 +1,4 @@
+import { databricksMetadata } from "./databricks-usage"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import os from "os"
 import { ConfigV1 } from "@opencode-ai/core/v1/config/config"
@@ -1752,6 +1753,9 @@ const layer = Layer.effect(
           delete options.fetch
         }
 
+        if (model.providerID === "cuy" && model.api.npm === "@ai-sdk/openai-compatible") {
+          options["metadataExtractor"] = databricksMetadata
+        }
         if (model.api.npm.includes("@ai-sdk/openai-compatible") && options["includeUsage"] !== false) {
           options["includeUsage"] = true
         }

@@ -11,6 +11,8 @@ import instalar
 
 
 class CredencialesTests(unittest.TestCase):
+    """El token se valida y se guarda sin aparecer en pantalla ni en los errores."""
+
     def test_dotenv_comillas_export_bom_sin_expansion(self):
         with tempfile.TemporaryDirectory() as directorio:
             ruta = Path(directorio) / '.env'

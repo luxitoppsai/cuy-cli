@@ -340,12 +340,13 @@ export const getUsage = (input: { model: Provider.Model; usage: Usage; metadata?
   const safe = (value: number) => Math.max(0, finite(value))
   const inputTokens = safe(input.usage.inputTokens ?? 0)
   const outputTokens = safe(input.usage.outputTokens ?? 0)
-  const reasoningTokens = safe(input.usage.reasoningTokens ?? 0)
+  const reasoningTokens = safe(Number(input.metadata?.["cuyDatabricks"]?.["reasoningTokens"] ?? input.usage.reasoningTokens ?? 0))
 
-  const cacheReadInputTokens = safe(input.usage.cacheReadInputTokens ?? 0)
+  const cacheReadInputTokens = safe(Number(input.metadata?.["cuyDatabricks"]?.["cacheReadInputTokens"] ?? input.usage.cacheReadInputTokens ?? 0))
   const cacheWriteInputTokens = safe(
     Number(
-      input.usage.cacheWriteInputTokens ??
+      input.metadata?.["cuyDatabricks"]?.["cacheWriteInputTokens"] ??
+        input.usage.cacheWriteInputTokens ??
         input.metadata?.["anthropic"]?.["cacheCreationInputTokens"] ??
         // google-vertex-anthropic returns metadata under "vertex" key
         // (AnthropicMessagesLanguageModel custom provider key from 'vertex.anthropic.messages')

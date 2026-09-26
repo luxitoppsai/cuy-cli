@@ -4,6 +4,15 @@ import struct
 
 
 def validar_windows(ruta: Path) -> Path:
+    """Comprueba que un archivo sea un ejecutable PE de Windows x64 o ARM64.
+
+    Se valida antes de invocarlo porque un binario de otra plataforma falla con un
+    error del sistema que no dice qué pasó.
+
+    :param ruta: Archivo a validar.
+    :returns: La misma ruta, para poder encadenar.
+    :raises ValueError: Si no es un PE válido para esta arquitectura.
+    """
     with ruta.open('rb') as archivo:
         cabecera = archivo.read(64)
         valido = len(cabecera) == 64 and cabecera[:2] == b'MZ'

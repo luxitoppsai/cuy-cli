@@ -15,6 +15,8 @@ from configuracion import validar_host, numero_entorno, leer_gasto
 
 
 class Controles(unittest.TestCase):
+    """Controles de red y de configuración que no dependen del workspace."""
+
     def test_rechaza_hosts_inseguros(self):
         for host in ("http://example.com", "https://user:pass@example.com", "https://x/a", "https://x?q=1", "https://x#f"):
             with self.subTest(host=host), self.assertRaises(ValueError):
@@ -33,6 +35,7 @@ class Controles(unittest.TestCase):
 
     def test_nativo_no_depende_del_primer_endpoint(self):
         def respuesta(host, headers, body):
+            """Responde como el workspace, para no depender de uno real."""
             return (200, {}) if body["model"] == "claude-b" else (404, {})
         with patch.object(gc, "_pedir_anthropic", side_effect=respuesta):
             resultado = gc.detectar_anthropic("https://x", "fake", ["databricks-claude-a", "databricks-claude-b"])
@@ -99,6 +102,8 @@ class Controles(unittest.TestCase):
 
 
 class DiagnosticoYContabilidad(unittest.TestCase):
+    """El diagnóstico detecta lo que falta y la contabilidad no asume gasto cero."""
+
     def test_lector_python_rechaza_corrupcion_como_el_plugin(self):
         with tempfile.TemporaryDirectory() as temp:
             ruta = Path(temp) / "gasto.json"

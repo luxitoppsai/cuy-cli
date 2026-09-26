@@ -20,6 +20,10 @@ LIMITE = numero_entorno("CUY_LIMITE_USD", 10)
 
 
 def main() -> int:
+    """Punto de entrada de ``cuy gasto``: muestra el acumulado del mes y el tope.
+
+    :returns: Código de salida; 0 aunque todavía no haya gasto registrado.
+    """
     if not GASTO.exists():
         print(f"Sin gasto registrado todavía ({GASTO})")
         print("Se empieza a contar al usar el agente.")
@@ -33,7 +37,7 @@ def main() -> int:
     mes = datetime.now().strftime("%Y-%m")
     actual = float(datos.get(mes, 0))
 
-    print(f"Mes en curso ({mes}): ${actual:.2f} de ${LIMITE:.2f}")
+    print(f"Estimación local ({mes}): ${actual:.4f} | límite ${LIMITE:.2f}")
     if LIMITE > 0:
         porcentaje = actual / LIMITE * 100
         lleno = int(min(porcentaje, 100) / 5)
@@ -48,10 +52,10 @@ def main() -> int:
             print(f"  {k}: ${float(otros[k]):.2f}")
 
     usd_dbu = os.environ.get("CUY_USD_POR_DBU", "0.07")
-    print(f"\nTarifas: declaradas en opencode.json  |  ${usd_dbu} por DBU")
-    print("  Databricks cobra en DBU por millón de tokens, no en dólares por token.")
-    print("  Para cambiarlas: editá DBU_POR_MILLON en generar_config.py, o corré")
-    print("  CUY_USD_POR_DBU=0.05 python generar_config.py  si tu contrato no es 0.07.")
+    print(f"\nReferencia: ${usd_dbu}/DBU; depende de las tarifas configuradas por modelo.")
+    print("No es una factura: solo incluye pasos registrados por esta instalación.")
+    print("No incluye necesariamente sondeos de instalación, solicitudes fallidas, otros equipos ni cargos del gateway.")
+    print("Ejecutá cuy costos para auditar las tarifas y compararlas con el gasto real del mismo alcance.")
     return 0
 
 

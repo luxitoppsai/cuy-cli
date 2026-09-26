@@ -20,6 +20,8 @@ import generar_config as gc  # noqa: E402
 
 
 class TamanoEstimado(unittest.TestCase):
+    """Orden de capacidad deducido del nombre, que decide principal y auxiliar."""
+
     def test_ordena_las_familias_claude(self):
         """Es el orden que importa en el workspace del trabajo."""
         claude = ["databricks-claude-opus-4-1", "databricks-claude-haiku-4-5",
@@ -45,6 +47,8 @@ class TamanoEstimado(unittest.TestCase):
 
 
 class ConstruirConfig(unittest.TestCase):
+    """Qué endpoints entran en la configuración y con qué declaraciones."""
+
     HOST = "https://ejemplo.cloud.databricks.com"
 
     def _config(self, detalles):
@@ -162,11 +166,26 @@ class PreferenciasDeModelo(unittest.TestCase):
     def test_sin_claude_se_elige_por_tamano(self):
         """En un workspace de pesos abiertos las preferencias no aplican."""
         c = self._config([
+            "databricks-gpt-oss-120b",
+            "databricks-meta-llama-3-1-8b-instruct",
+        ], limite=8000)
+        self.assertIn("120b", c["model"])
+        self.assertIn("8b", c["small_model"])
+
+    def test_un_modelo_sin_tarifa_no_se_elige_por_defecto(self):
+        """Sin tarifa no hay forma de contabilizarlo: el tope de gasto lo sumaría en cero."""
+        c = self._config([
             "databricks-qwen3-next-80b-a3b-instruct",
             "databricks-meta-llama-3-1-8b-instruct",
         ], limite=8000)
-        self.assertIn("80b", c["model"])
-        self.assertIn("8b", c["small_model"])
+        self.assertIn("8b", c["model"])
+        self.assertIn("databricks-qwen3-next-80b-a3b-instruct",
+                      c["provider"][gc.PROVEEDOR]["models"])
+
+    def test_si_ninguno_tiene_tarifa_se_elige_igual(self):
+        """Quedarse sin modelo por defecto sería peor que elegir uno sin contabilizar."""
+        c = self._config(["databricks-qwen3-next-80b-a3b-instruct"], limite=8000)
+        self.assertIn("qwen3-next-80b-a3b-instruct", c["model"])
 
     def test_elige_la_version_mas_nueva_de_la_familia(self):
         c = self._config(["databricks-claude-sonnet-4", "databricks-claude-sonnet-4-5"])
@@ -174,53 +193,33 @@ class PreferenciasDeModelo(unittest.TestCase):
 
 
 class TarifaUsd(unittest.TestCase):
-    """La tarifa que se declara en `opencode.json` para que OpenCode muestre el gasto.
+    """Traducción de DBU a dólares, por versión exacta y con caché."""
 
-    Antes este cálculo vivía en el plugin de presupuesto y se hacía a mano. Ahora se
-    declara una vez y OpenCode calcula: estas pruebas son las que se mudaron de
-    `presupuesto.test.mjs`.
-    """
+    def test_tarifa_publica_por_version_y_cache(self):
+        sonnet = gc.tarifa_usd("databricks-claude-sonnet-4", 0.07)
+        self.assertEqual(sonnet['input'], 3.0)
+        self.assertEqual(sonnet['output'], 15.0)
+        self.assertEqual(sonnet['cache_read'], 0.3)
+        self.assertEqual(sonnet['cache_write'], 3.75)
+        self.assertEqual(sonnet['context_over_200k']['input'], 6.0)
+        self.assertAlmostEqual(gc.tarifa_usd('databricks-claude-opus-4-1', 0.07)['output'], 75.0, places=3)
+        self.assertAlmostEqual(gc.tarifa_usd('databricks-claude-opus-4-5', 0.07)['output'], 25.0, places=3)
 
-    def test_las_tarifas_de_claude_son_las_reales_de_databricks(self):
-        # A $0.07/DBU: Haiku $1/$5, Sonnet $3/$15, Opus $5/$25 por millón.
-        self.assertEqual(gc.tarifa_usd("databricks-claude-haiku-4-5"),
-                         {"input": 1.0, "output": 5.0})
-        self.assertEqual(gc.tarifa_usd("databricks-claude-sonnet-4"),
-                         {"input": 3.0, "output": 15.0})
-        self.assertEqual(gc.tarifa_usd("databricks-claude-opus-4-1"),
-                         {"input": 5.0, "output": 25.0})
+    def test_no_extrapola_modelos_futuros(self):
+        self.assertIsNone(gc.tarifa_usd('databricks-claude-opus-99'))
+        self.assertIsNone(gc.tarifa_usd('databricks-claude-sonnet-4-6'))
 
-    def test_opus_no_cuesta_lo_que_la_lista_de_anthropic(self):
-        """Databricks lo factura a un tercio: $25 la salida, no $75."""
-        self.assertLess(gc.tarifa_usd("databricks-claude-opus-4-1")["output"], 30)
+    def test_dbu_se_lee_en_cada_llamada(self):
+        from unittest.mock import patch
+        import os
+        with patch.dict(os.environ, {'CUY_USD_POR_DBU': '0.14'}):
+            self.assertEqual(gc.tarifa_usd('databricks-claude-sonnet-4')['input'], 6.0)
 
-    def test_la_clave_mas_especifica_gana(self):
-        """'llama-3-1-8b' no debe caer en una coincidencia más corta."""
-        self.assertEqual(gc.tarifa_usd("databricks-meta-llama-3-1-8b-instruct"),
-                         gc.tarifa_usd("llama-3-1-8b"))
-
-    def test_un_modelo_desconocido_no_tiene_tarifa(self):
-        """Preferible a inventar un número."""
-        self.assertIsNone(gc.tarifa_usd("databricks-gemma-3-12b"))
-
-    def test_otro_dolar_por_dbu_cambia_el_costo_proporcionalmente(self):
-        normal = gc.tarifa_usd("databricks-claude-sonnet-4", 0.07)
-        doble = gc.tarifa_usd("databricks-claude-sonnet-4", 0.14)
-        self.assertAlmostEqual(doble["input"], normal["input"] * 2, places=4)
-
-    def test_la_config_declara_el_costo_de_cada_modelo_conocido(self):
-        """Sin `cost`, OpenCode calcula cero y la TUI no muestra el gasto."""
-        c = gc.construir_config(
-            "https://ejemplo.cloud.databricks.com",
-            [{"name": "databricks-claude-sonnet-4"}, {"name": "databricks-gemma-3-12b"}],
-            {"databricks-claude-sonnet-4": {"forma": "string", "limite": 8192},
-             "databricks-gemma-3-12b": {"forma": "string", "limite": 8192}},
-        )
-        modelos = c["provider"][gc.PROVEEDOR]["models"]
-        self.assertEqual(modelos["databricks-claude-sonnet-4"]["cost"],
-                         {"input": 3.0, "output": 15.0})
-        # El desconocido se queda sin `cost` en vez de con un precio inventado.
-        self.assertNotIn("cost", modelos["databricks-gemma-3-12b"])
+    def test_config_declara_cache_y_poda(self):
+        config = gc.construir_config('https://workspace.example', [{'name': 'databricks-claude-sonnet-4'}],
+            {'databricks-claude-sonnet-4': {'forma': 'string', 'limite': 8000}})
+        self.assertEqual(config['provider'][gc.PROVEEDOR]['models']['databricks-claude-sonnet-4']['cost']['cache_write'], 3.75)
+        self.assertEqual(config['compaction'], {'auto': True, 'prune': True})
 
 
 class DetectarForma(unittest.TestCase):

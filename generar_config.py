@@ -24,7 +24,7 @@ import sys
 import urllib.error
 import urllib.request
 
-from configuracion import escribir_json, numero_entorno, validar_host, cargar_archivo_env, validar_token
+from configuracion import escribir_json, validar_host, cargar_archivo_env, validar_token
 
 RAIZ = pathlib.Path(__file__).resolve().parent
 
@@ -217,6 +217,11 @@ def detectar_anthropic(host: str, token: str, endpoints: list[str]) -> dict | No
 
 
 def es_claude(endpoint: str) -> bool:
+    """Dice si un endpoint sirve un modelo de la familia Claude.
+
+    :param endpoint: Nombre del endpoint.
+    :returns: ``True`` si es Claude, que es la condición para intentar la vía nativa.
+    """
     return "claude" in endpoint.lower()
 
 
@@ -407,49 +412,8 @@ PREFERIDOS_PRINCIPAL = ["sonnet", "opus"]
 PREFERIDOS_AUXILIAR = ["haiku"]
 
 
-# Dólares por DBU. Es el convenio estándar de Model Serving, pero **depende del
-# contrato**: cada empresa negocia el suyo y varía por nube y región.
-USD_POR_DBU = numero_entorno("CUY_USD_POR_DBU", 0.07)
-
-# Tarifas en **DBU por millón de tokens**, que es como las publica Databricks. Las de
-# Claude son las reales del workspace, y vale saber que **no coinciden con la lista de
-# Anthropic**: Opus se factura a un tercio de ella. Derivarlas de precios públicos, como
-# se hizo en un primer intento, daba números muy equivocados.
-DBU_POR_MILLON = {
-    "opus": {"entrada": 71.42857, "salida": 357.142857},
-    "sonnet": {"entrada": 42.857, "salida": 214.286},
-    "haiku": {"entrada": 14.286, "salida": 71.429},
-    "llama-4-maverick": {"entrada": 7.143, "salida": 21.429},
-    "llama-3-1-8b": {"entrada": 2.143, "salida": 6.429},
-    "gpt-oss-20b": {"entrada": 1.0, "salida": 4.286},
-}
-
-
-def tarifa_usd(modelo: str, usd_por_dbu: float = USD_POR_DBU) -> dict | None:
-    """Traduce la tarifa en DBU de un modelo a dólares por millón de tokens.
-
-    Es lo que OpenCode entiende: declarar ``cost`` en cada modelo hace que calcule y
-    muestre el gasto de la sesión por su cuenta, sin que nadie lleve la cuenta aparte.
-
-    :param modelo: Nombre del endpoint.
-    :param usd_por_dbu: Dólares por DBU según el contrato.
-    :returns: ``{"input": …, "output": …}`` en USD por millón, o ``None`` si no se
-        conoce la tarifa del modelo —preferible a inventar un número—.
-    """
-    nombre = modelo.lower()
-    # Primero las claves más específicas: "llama-3-1-8b" debe ganarle a "llama".
-    for clave in sorted(DBU_POR_MILLON, key=len, reverse=True):
-        if clave in nombre:
-            dbu = DBU_POR_MILLON[clave]
-            # Cuatro decimales: las tarifas en DBU vienen ya redondeadas de Databricks,
-            # así que los dígitos de más son ruido de ese redondeo y no información
-            # (14.286 × 0.07 da 1.00002, no 1). A esta escala —dólares por millón de
-            # tokens— la diferencia es de centésimas de centavo.
-            return {
-                "input": round(dbu["entrada"] * usd_por_dbu, 4),
-                "output": round(dbu["salida"] * usd_por_dbu, 4),
-            }
-    return None
+# Catálogo por versión y ajuste contractual, cargado al usarlo (después de .env).
+from tarifas import tarifa_usd
 
 
 def elegir(candidatos: list[str], preferidos: list[str], respaldo) -> str | None:
@@ -471,6 +435,13 @@ def elegir(candidatos: list[str], preferidos: list[str], respaldo) -> str | None
 
 
 def permisos_lectura() -> dict:
+    """Permisos de un agente que solo puede leer.
+
+    Se parte de ``deny`` y se habilita lo justo, para que una herramienta nueva de
+    OpenCode no quede permitida por omisión.
+
+    :returns: Bloque ``permission`` de solo lectura.
+    """
     return {"*": "deny", "read": "allow", "glob": "allow", "grep": "allow",
             "list": "allow", "external_directory": "ask", "question": "allow"}
 
@@ -606,7 +577,9 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict,
 
     # Se ordena por tamaño estimado, no por tope de tokens: el tope no se correlaciona
     # con la capacidad (dos modelos muy distintos pueden compartir el mismo 8192).
-    por_tamano = sorted(usables, key=_tamano_estimado)
+    # No elegir por defecto un modelo sin tarifa si hay alternativas documentadas.
+    elegibles = [n for n in usables if tarifa_usd(n) is not None] or list(usables)
+    por_tamano = sorted(elegibles, key=_tamano_estimado)
     principal = elegir(por_tamano, PREFERIDOS_PRINCIPAL, lambda c: c[-1])
     auxiliar = elegir(por_tamano, PREFERIDOS_AUXILIAR, lambda c: c[0])
     if principal == auxiliar and len(por_tamano) > 1:
@@ -622,6 +595,8 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict,
         # y solo ensucian la elección.
         "enabled_providers": list(proveedores),
         "permission": construir_permisos(),
+        "compaction": {"auto": True, "prune": True},
+        "tool_output": {"max_lines": 1000, "max_bytes": 24000},
         "provider": proveedores,
     }
     if principal:
@@ -669,6 +644,10 @@ def descubrir_config(host: str, token: str, rapido: bool = False) -> dict:
 
 
 def main() -> int:
+    """Punto de entrada de ``generar_config.py``: descubre el workspace y escribe la config.
+
+    :returns: Código de salida; 0 si se escribió una configuración usable.
+    """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--host", help="URL del workspace (o DATABRICKS_HOST)")
     parser.add_argument("--salida", default="opencode.json", help="Archivo a escribir")

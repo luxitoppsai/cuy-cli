@@ -49,9 +49,9 @@ prueba("no rompe con eventos ausentes o basura", () => {
   }
 });
 
-prueba("un costo no numérico o negativo no suma", () => {
+prueba("un costo no numérico o negativo no se oculta como cero", () => {
   for (const caso of [null, undefined, "gratis", NaN, Infinity, -1]) {
-    assert.equal(costoDelEvento(cierreDePaso(caso)), 0);
+    assert.throws(() => costoDelEvento(cierreDePaso(caso)), /Costo del paso/);
   }
 });
 

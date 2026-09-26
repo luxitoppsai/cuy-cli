@@ -62,6 +62,11 @@ def leer(ruta: pathlib.Path, dias: int, usuario: str | None) -> list[dict]:
 
 
 def deduplicar(entradas: list[dict]) -> list[dict]:
+    """Descarta resultados de herramienta repetidos por reintentos del motor.
+
+    :param entradas: Entradas del registro, ya ordenadas por fecha.
+    :returns: Las mismas entradas sin los duplicados de ``herramienta.resultado``.
+    """
     vistos = set()
     resultado = []
     for entrada in entradas:
@@ -132,6 +137,10 @@ def listar(entradas: list[dict], clave: str, titulo: str) -> None:
 
 
 def main() -> int:
+    """Punto de entrada de ``cuy auditar``.
+
+    :returns: Código de salida; 0 aunque no haya registro que mostrar.
+    """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dias", type=int, default=7, help="Ventana hacia atrás (0 = todo)")
     parser.add_argument("--usuario", help="Filtrar por persona")

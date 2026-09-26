@@ -105,6 +105,10 @@ def entorno_agente() -> dict:
     agentes["explore"]["mode"] = "subagent"
     agentes["scout"] = {"disable": True}
     agentes.setdefault("build", {})["steps"] = 30
+    config.setdefault("tool_output", {}).setdefault("max_lines", 1000)
+    config["tool_output"].setdefault("max_bytes", 24000)
+    config.setdefault("compaction", {}).setdefault("auto", True)
+    config["compaction"].setdefault("prune", True)
     config["username"] = "cuycli"
     config["share"] = "disabled"
     config["enabled_providers"] = list(config["provider"])
@@ -120,6 +124,10 @@ def entorno_agente() -> dict:
 
 
 def main() -> int:
+    """Punto de entrada del lanzador: despacha subcomandos o abre el motor.
+
+    :returns: Código de salida del subcomando o del motor.
+    """
     if sys.argv[1:2] == ["upgrade"]:
         print("Para actualizar cuycli, actualizá el repositorio y ejecutá python instalar.py --reparar-motor.")
         return 1
@@ -136,6 +144,9 @@ def main() -> int:
     if sys.argv[1:2] == ["doctor"]:
         from diagnostico import main as doctor
         return doctor(sys.argv[2:])
+    if sys.argv[1:2] == ["costos"]:
+        from costos import main as costos
+        return costos(sys.argv[2:])
     if sys.argv[1:2] == ["gasto"]:
         from gasto import main as gasto
         return gasto()

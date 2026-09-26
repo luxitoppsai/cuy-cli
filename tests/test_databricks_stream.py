@@ -5,6 +5,8 @@ import generar_config as gc
 
 
 class DatabricksStreamTests(unittest.TestCase):
+    """Lectura del stream de Databricks, que ubica el uso donde el SDK no lo busca."""
+
     def test_bloques_reasoning_se_prueban_en_ruta_real_del_agente(self):
         fragmento = {
             'model': 'us.anthropic.claude-sonnet-5',
@@ -25,7 +27,10 @@ class DatabricksStreamTests(unittest.TestCase):
         self.assertFalse(config['provider'])
 
 class VerificacionInstaladorTests(unittest.TestCase):
+    """La llamada de prueba del instalador acepta o rechaza según la forma real."""
+
     def verificar(self, fragmentos):
+        """Corre la verificación del instalador sobre un stream dado."""
         import instalar
         config = gc.construir_config('https://workspace.example', [{'name': 'modelo'}],
                                     {'modelo': {'forma': 'string', 'limite': 8000}})

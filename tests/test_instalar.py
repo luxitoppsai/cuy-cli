@@ -44,7 +44,10 @@ def _fingir(formas):
 
 
 class Generar(unittest.TestCase):
+    """Descubrimiento del workspace con las llamadas de red fingidas."""
+
     def setUp(self):
+        """Apunta la configuración a un archivo temporal para no pisar la real."""
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         # Sin esto se pisaría el opencode.json real del repo.

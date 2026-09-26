@@ -1,3 +1,4 @@
+"""Pruebas de la validación del formato ejecutable antes de invocarlo."""
 import struct
 import tempfile
 import unittest
@@ -10,6 +11,8 @@ from ejecutables import validar_windows
 
 
 class EjecutablesTests(unittest.TestCase):
+    """Un binario de otra plataforma debe rechazarse antes de intentar ejecutarlo."""
+
     def test_rechaza_binario_otro_sistema_y_pe_truncado(self):
         with tempfile.TemporaryDirectory() as tmp:
             ruta = Path(tmp) / 'opencode.exe'

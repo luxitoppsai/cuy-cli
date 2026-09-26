@@ -11,9 +11,22 @@ from configuracion import numero_entorno, validar_host, leer_gasto
 
 
 def diagnosticar() -> dict:
+    """Revisa que la instalación esté completa y utilizable.
+
+    Cada control se ejecuta aunque el anterior falle, para que un solo diagnóstico
+    muestre todo lo que hay que arreglar en vez de la primera causa.
+
+    :returns: ``{"controles": [...], "ok": bool}``.
+    """
     checks = []
 
     def anotar(nombre, ok, detalle):
+        """Agrega el resultado de un control a la lista.
+
+        :param nombre: Qué se comprobó.
+        :param ok: Si pasó.
+        :param detalle: Explicación o siguiente paso.
+        """
         checks.append({"control": nombre, "ok": ok, "detalle": detalle})
 
     try:
@@ -64,6 +77,10 @@ def diagnosticar() -> dict:
 
 
 def main(argv=None) -> int:
+    """Punto de entrada de ``cuy doctor``: imprime el diagnóstico de la instalación.
+
+    :returns: Código de salida; distinto de 0 si algún control falló.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="Salida apta para soporte/CI, sin credenciales")
     parser.add_argument("--verificar", action="store_true", help="Hacer una llamada real y facturable al modelo")

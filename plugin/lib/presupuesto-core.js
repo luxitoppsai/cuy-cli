@@ -44,8 +44,11 @@ export function costoDelEvento(evento) {
   if (evento?.type !== "message.part.updated") return 0;
   const parte = evento?.properties?.part;
   if (parte?.type !== "step-finish") return 0;
-  const costo = Number(parte.cost);
-  return Number.isFinite(costo) && costo > 0 ? costo : 0;
+  const costo = parte.cost;
+  if (typeof costo !== "number" || !Number.isFinite(costo) || costo < 0) {
+    throw new Error("Costo del paso ausente o inválido; no se contabiliza como cero.");
+  }
+  return costo;
 }
 
 /** Mes actual como ``AAAA-MM``, que es la clave con la que se acumula el gasto. */

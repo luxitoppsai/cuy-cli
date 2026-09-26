@@ -31,6 +31,13 @@ Las líneas y archivos deben existir. No incluyas credenciales. El JSON es un in
 
 
 def git(carpeta: Path, *args: str) -> bytes:
+    """Ejecuta git en una carpeta y devuelve su salida cruda.
+
+    :param carpeta: Repositorio sobre el que operar.
+    :param args: Argumentos de git.
+    :returns: La salida estándar sin decodificar; las rutas de git no siempre son UTF-8.
+    :raises ValueError: Si git termina con error.
+    """
     resultado = subprocess.run(["git", "-C", str(carpeta), *args], capture_output=True, timeout=30)
     if resultado.returncode:
         raise ValueError("No se pudo ejecutar git " + args[0] + ". Verificá el repositorio y sus permisos.")
@@ -38,6 +45,12 @@ def git(carpeta: Path, *args: str) -> bytes:
 
 
 def raiz_git(carpeta: Path) -> Path:
+    """Devuelve la raíz del repositorio que contiene una carpeta.
+
+    :param carpeta: Cualquier carpeta dentro del repositorio.
+    :returns: Ruta absoluta de la raíz.
+    :raises ValueError: Si la carpeta no pertenece a un repositorio.
+    """
     return Path(os.fsdecode(git(carpeta, "rev-parse", "--show-toplevel")).strip()).resolve()
 
 
@@ -67,6 +80,12 @@ def foto(carpeta: Path) -> dict:
 
 
 def cambios(antes: dict, despues: dict) -> list[str]:
+    """Lista los archivos que cambiaron entre dos fotos del repositorio.
+
+    :param antes: Foto tomada antes de la tarea.
+    :param despues: Foto tomada después.
+    :returns: Rutas relativas modificadas, agregadas o borradas, ordenadas.
+    """
     a, b = antes["archivos"], despues["archivos"]
     return sorted(k for k in a.keys() | b.keys() if a.get(k) != b.get(k))
 
@@ -90,6 +109,21 @@ def guardar_diff(trabajo: Path, destino: Path) -> None:
 
 
 def preparar_entorno(entorno: dict, flujo: str, carpeta: Path) -> tuple[dict, str]:
+    """Arma el entorno y el agente efímero con que se corre un flujo.
+
+    Valida antes de gastar: que el modelo tenga tarifa declarada y que el presupuesto
+    del mes no esté agotado. Comprobarlo acá evita crear un worktree y arrancar
+    inferencia para después fallar.
+
+    Los permisos se arman por flujo: ``corregir`` es el único que puede editar, y nunca
+    dentro de ``.git``.
+
+    :param entorno: Variables de entorno base, con ``OPENCODE_CONFIG_CONTENT``.
+    :param flujo: Uno de :data:`FLUJOS`.
+    :param carpeta: Carpeta de trabajo de la tarea.
+    :returns: ``(entorno listo, nombre del agente)``.
+    :raises ValueError: Si el modelo no tiene tarifa o el presupuesto está agotado.
+    """
     config = json.loads(entorno["OPENCODE_CONFIG_CONTENT"])
     modelo = config["model"]
     proveedor, nombre = modelo.split("/", 1)
@@ -134,6 +168,15 @@ def detener(proceso: subprocess.Popen) -> None:
 
 def ejecutar_proceso(argv: list[str], carpeta: Path, entorno: dict, limite: int,
                      entrada: str | None = None) -> tuple[int, str, bool]:
+    """Corre un proceso con tiempo máximo, recogiendo su salida a disco.
+
+    :param argv: Comando y argumentos, sin shell.
+    :param carpeta: Directorio de trabajo.
+    :param entorno: Variables de entorno del proceso.
+    :param limite: Segundos máximos antes de detenerlo junto con sus hijos.
+    :param entrada: Texto a mandarle por entrada estándar, si hace falta.
+    :returns: ``(código de salida, salida combinada, si se agotó el tiempo)``.
+    """
     # No guardar trazas crudas como historial: pueden incluir texto del proyecto.
     with tempfile.TemporaryFile() as salida, tempfile.TemporaryFile() as errores:
         proceso = subprocess.Popen(argv, cwd=carpeta, env=entorno, stdin=subprocess.PIPE,
@@ -155,6 +198,15 @@ def ejecutar_proceso(argv: list[str], carpeta: Path, entorno: dict, limite: int,
 
 
 def leer_eventos(texto: str) -> dict:
+    """Extrae el resultado de la tarea del flujo de eventos JSON del motor.
+
+    Las líneas que no parsean se saltan en vez de abortar: la salida del motor puede
+    traer texto que no es un evento, y perder la tarea entera por eso sería peor.
+
+    :param texto: Salida del motor, un evento JSON por línea.
+    :returns: ``{"texto", "sesiones", "costo_usd", "errores_motor"}``. ``costo_usd`` es
+        ``None`` si no hubo ningún paso con costo, que no es lo mismo que costo cero.
+    """
     mensajes, pasos, sesiones = {}, {}, set()
     errores = 0
     for linea in texto.splitlines():
@@ -182,6 +234,17 @@ def leer_eventos(texto: str) -> dict:
 
 
 def validar_entrega(texto: str, carpeta: Path, flujo: str) -> dict:
+    """Valida el informe JSON que devuelve el agente y comprueba sus referencias.
+
+    Se verifica que los archivos y líneas citados existan de verdad: un informe que
+    referencia código inexistente es una alucinación presentada como evidencia.
+
+    :param texto: Respuesta final del agente.
+    :param carpeta: Carpeta contra la que resolver las referencias.
+    :param flujo: Flujo ejecutado, que determina qué campos son exigibles.
+    :returns: ``{"resumen", "referencias", "hallazgos"}``.
+    :raises ValueError: Si no es JSON válido, le faltan campos o cita algo que no existe.
+    """
     limpio = texto.strip()
     if limpio.startswith("```json") and limpio.endswith("```"):
         limpio = limpio[7:-3].strip()
@@ -216,6 +279,16 @@ def validar_entrega(texto: str, carpeta: Path, flujo: str) -> dict:
 
 
 def entorno_pruebas(entorno: dict, carpeta: Path) -> dict:
+    """Arma el entorno con que se corren las pruebas de verificación, sin credenciales.
+
+    Las pruebas ejecutan código que el agente acaba de escribir, así que corren sin
+    ninguna de las variables que el proveedor necesita: si ese código intentara usar el
+    token del workspace, no lo encuentra.
+
+    :param entorno: Entorno de la tarea, del que se filtran los secretos.
+    :param carpeta: Directorio de trabajo de las pruebas.
+    :returns: Entorno saneado.
+    """
     config = entorno.get("OPENCODE_CONFIG_CONTENT", "")
     secretos = set(re.findall(r"\{env:([^}]+)\}", config)) | {"DATABRICKS_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"}
     return {**{k: v for k, v in entorno.items() if k not in secretos
@@ -224,6 +297,24 @@ def entorno_pruebas(entorno: dict, carpeta: Path) -> dict:
 
 def correr_tarea(flujo: str, objetivo: str, proyecto: Path, binario: Path, entorno: dict,
                  almacen: Path, pruebas: list[list[str]], limite: int, progreso=lambda texto: None) -> dict:
+    """Corre un flujo de principio a fin y devuelve un informe verificable.
+
+    ``corregir`` trabaja en un worktree aparte, partiendo de HEAD, para que un cambio del
+    agente nunca toque el árbol de trabajo del usuario sin que lo haya revisado. Los
+    otros flujos son de lectura y analizan el estado actual.
+
+    :param flujo: Uno de :data:`FLUJOS`.
+    :param objetivo: Lo que se le pide al agente.
+    :param proyecto: Cualquier carpeta del repositorio.
+    :param binario: Ejecutable del motor.
+    :param entorno: Variables de entorno base.
+    :param almacen: Carpeta donde guardar la tarea, fuera del repositorio.
+    :param pruebas: Comandos de verificación, sin shell.
+    :param limite: Segundos máximos para el motor y para cada prueba.
+    :param progreso: Función a la que se le informa el avance.
+    :returns: El informe de la tarea.
+    :raises ValueError: Si el repositorio, el presupuesto o la entrega no lo permiten.
+    """
     proyecto = raiz_git(proyecto)
     if almacen.resolve().is_relative_to(proyecto):
         raise ValueError("CUY_TAREAS debe apuntar fuera del repositorio para no mezclar informes y código.")
@@ -309,6 +400,11 @@ def correr_tarea(flujo: str, objetivo: str, proyecto: Path, binario: Path, entor
 
 
 def main(argv=None) -> int:
+    """Punto de entrada de ``cuy entender|corregir|revisar``.
+
+    :param argv: Argumentos de línea de comandos; ``None`` usa ``sys.argv``.
+    :returns: Código de salida; 0 si la tarea terminó y se validó.
+    """
     import cuy
     from presentacion import mostrar_resultado
     parser = argparse.ArgumentParser(description="Entender, corregir o revisar con un entregable verificable.")
