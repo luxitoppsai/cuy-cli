@@ -1,7 +1,7 @@
-const logo = {
-  left: ["                   ", "█▀▀█ █▀▀█ █▀▀█ █▀▀▄", "█__█ █__█ █^^^ █__█", "▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀~~▀"],
-  right: ["             ▄     ", "█▀▀▀ █▀▀█ █▀▀█ █▀▀█", "█___ █__█ █__█ █^^^", "▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀"],
-}
+// Se importa en vez de duplicarse: había una segunda copia acá, y al rebrandear se
+// actualizó solo la de `logo.ts`. El epílogo de cierre siguió mostrando el logo viejo
+// aunque la línea de "Continue" ya decía `cuy`.
+import { logo } from "../logo"
 
 const reset = "\x1b[0m"
 const bold = "\x1b[1m"
