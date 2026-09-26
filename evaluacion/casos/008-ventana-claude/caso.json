@@ -1,0 +1,14 @@
+{
+  "objetivo": "La ventana configurada de Claude debe ser 200000, no 128000. Conserva el límite de salida recibido.",
+  "prueba": [
+    "{python}",
+    "-m",
+    "unittest",
+    "test_regresion.py"
+  ],
+  "intocables": [
+    "test_regresion.py"
+  ],
+  "referencia": "b4caf30^:generar_config.py / _describir_modelo; corregido en b4caf30",
+  "grupo": "contexto"
+}

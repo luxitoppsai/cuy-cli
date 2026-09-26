@@ -1,0 +1,14 @@
+{
+  "objetivo": "Para Qwen se configura conservadoramente 32000 tokens de contexto. Modelos desconocidos conservan 128000; no es descubrimiento del endpoint.",
+  "prueba": [
+    "{python}",
+    "-m",
+    "unittest",
+    "test_regresion.py"
+  ],
+  "intocables": [
+    "test_regresion.py"
+  ],
+  "referencia": "b4caf30^:generar_config.py / _describir_modelo; corregido en b4caf30",
+  "grupo": "contexto"
+}

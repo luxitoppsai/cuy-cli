@@ -1,0 +1,14 @@
+{
+  "objetivo": "Una versión no tarifada debe devolver None: no extrapoles a Sonnet 99. Sonnet 4.5 sigue disponible.",
+  "prueba": [
+    "{python}",
+    "-m",
+    "unittest",
+    "test_regresion.py"
+  ],
+  "intocables": [
+    "test_regresion.py"
+  ],
+  "referencia": "8425ecf:generar_config.py / tarifa_usd; corregido en 1094fb5",
+  "grupo": "tarifas"
+}

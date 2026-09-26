@@ -356,3 +356,12 @@ El equipo de trabajo clona o actualiza el repositorio y ejecuta `python instalar
   No presenta un gasto global calculado como si fuera un saldo disponible.
 - Los errores habituales de Databricks incluyen pasos concretos para resolverlos.
 - En terminales pequeñas, el panel inicial se oculta para dejar espacio al mensaje.
+
+### Evaluar correcciones y su costo
+
+`python evaluar.py --seco` valida los diez casos de regresión sin llamar modelos.
+`python evaluar.py --presupuesto-usd 0.50` ejecuta la evaluación real usando la instalación
+actual, con presupuesto propio además del mensual. El informe distingue total estimado
+completo de **total parcial**. No requiere Bun ni recompilar.
+
+[Uso, límites y procedencia de los casos](evaluacion/README.md).

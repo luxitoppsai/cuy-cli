@@ -1,0 +1,14 @@
+{
+  "objetivo": "Sonnet 4.5: añade cache_read de 4.286 DBU por millón. Conserva entrada y salida.",
+  "prueba": [
+    "{python}",
+    "-m",
+    "unittest",
+    "test_regresion.py"
+  ],
+  "intocables": [
+    "test_regresion.py"
+  ],
+  "referencia": "8425ecf:generar_config.py / tarifa_usd; corregido en 1094fb5",
+  "grupo": "tarifas"
+}

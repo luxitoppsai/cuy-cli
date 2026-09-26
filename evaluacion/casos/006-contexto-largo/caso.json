@@ -1,0 +1,14 @@
+{
+  "objetivo": "Sonnet 4.5 necesita context_over_200k con input 85.714 y output 321.429 DBU por millón; conserva la tarifa corta.",
+  "prueba": [
+    "{python}",
+    "-m",
+    "unittest",
+    "test_regresion.py"
+  ],
+  "intocables": [
+    "test_regresion.py"
+  ],
+  "referencia": "8425ecf:generar_config.py / tarifa_usd; corregido en 1094fb5",
+  "grupo": "tarifas"
+}

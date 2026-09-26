@@ -1,0 +1,14 @@
+{
+  "objetivo": "No atribuyas tarifas por substring a endpoints personalizados como mi-claude-sonnet-4-5-copia. databricks-claude-sonnet-4-5 sí es conocido.",
+  "prueba": [
+    "{python}",
+    "-m",
+    "unittest",
+    "test_regresion.py"
+  ],
+  "intocables": [
+    "test_regresion.py"
+  ],
+  "referencia": "8425ecf:generar_config.py / tarifa_usd; corregido en 1094fb5",
+  "grupo": "tarifas"
+}

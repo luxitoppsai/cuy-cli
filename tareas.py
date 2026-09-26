@@ -204,8 +204,10 @@ def leer_eventos(texto: str) -> dict:
     traer texto que no es un evento, y perder la tarea entera por eso sería peor.
 
     :param texto: Salida del motor, un evento JSON por línea.
-    :returns: ``{"texto", "sesiones", "costo_usd", "errores_motor"}``. ``costo_usd`` es
-        ``None`` si no hubo ningún paso con costo, que no es lo mismo que costo cero.
+    :returns: Texto, sesiones, costo, errores y conteos de pasos con/sin costo.
+        ``costo_completo`` distingue el subtotal de un total con todos los pasos
+        informados. ``costo_usd`` es ``None`` si no hubo ningún paso con costo,
+        que no es lo mismo que costo cero.
     """
     mensajes, pasos, sesiones = {}, {}, set()
     errores = 0
@@ -227,10 +229,16 @@ def leer_eventos(texto: str) -> dict:
             costo = parte.get("cost")
             if type(costo) in (int, float) and math.isfinite(costo) and costo >= 0:
                 pasos[parte.get("id", str(len(pasos)))] = costo
+            else:
+                pasos[parte.get("id", str(len(pasos)))] = None
         if evento.get("type") == "error":
             errores += 1
     return {"texto": next(reversed(mensajes.values()), ""), "sesiones": sorted(sesiones),
-            "costo_usd": sum(pasos.values()) if pasos else None, "errores_motor": errores}
+            "costo_usd": sum(v for v in pasos.values() if v is not None) if any(v is not None for v in pasos.values()) else None,
+            "pasos": len(pasos), "pasos_con_costo": sum(v is not None for v in pasos.values()),
+            "pasos_sin_costo": sum(v is None for v in pasos.values()),
+            "costo_completo": bool(pasos) and all(v is not None for v in pasos.values()),
+            "errores_motor": errores}
 
 
 def validar_entrega(texto: str, carpeta: Path, flujo: str) -> dict:
@@ -322,7 +330,8 @@ def correr_tarea(flujo: str, objetivo: str, proyecto: Path, binario: Path, entor
     if flujo == "corregir" and inicial["estado"]:
         raise ValueError("Hay cambios previos. La corrección aislada parte de HEAD: guardá esos cambios en una rama/commit antes de iniciar. Entender y revisar sí pueden analizar el estado actual.")
     # Validar tarifas/contabilidad antes de crear un worktree o iniciar inferencia.
-    preparar_entorno(entorno, flujo, proyecto)
+    env_inicial, agente_inicial = preparar_entorno(entorno, flujo, proyecto)
+    pasos_configurados = json.loads(env_inicial["OPENCODE_CONFIG_CONTENT"])["agent"][agente_inicial]["steps"]
     task_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
     carpeta_tarea = almacen.resolve() / task_id
     carpeta_tarea.mkdir(parents=True, mode=0o700)
@@ -330,7 +339,9 @@ def correr_tarea(flujo: str, objetivo: str, proyecto: Path, binario: Path, entor
     informe = {"version": 1, "id": task_id, "flujo": flujo, "estado": "preparada", "proyecto": str(proyecto),
                "trabajo": str(trabajo), "base": inicial["head"], "inicio": datetime.now(timezone.utc).isoformat(),
                "cambios_previos": bool(inicial["estado"]), "archivos": [], "pruebas": [],
-               "sesiones": [], "costo_usd": None, "entrega": None, "motivo": "", "informe": str(carpeta_tarea / "resultado.json")}
+               "fase": "preparacion", "codigo_motivo": "", "limite_pasos_configurado": pasos_configurados,
+               "sesiones": [], "costo_usd": 0.0, "costo_completo": True, "pasos": 0,
+               "pasos_con_costo": 0, "pasos_sin_costo": 0, "entrega": None, "motivo": "", "informe": str(carpeta_tarea / "resultado.json")}
     escribir_json(carpeta_tarea / "base.json", inicial)
     escribir_json(Path(informe["informe"]), informe)
     inicio = time.monotonic()
@@ -340,6 +351,7 @@ def correr_tarea(flujo: str, objetivo: str, proyecto: Path, binario: Path, entor
             git(proyecto, "worktree", "add", "--detach", str(trabajo), inicial["head"])
         antes = foto(trabajo)
         env, agente = preparar_entorno(entorno, flujo, trabajo)
+        informe["limite_pasos_configurado"] = json.loads(env["OPENCODE_CONFIG_CONTENT"])["agent"][agente]["steps"]
         baselines = []
         if pruebas:
             progreso("Ejecutando pruebas sobre la base, antes de editar")
@@ -347,26 +359,35 @@ def correr_tarea(flujo: str, objetivo: str, proyecto: Path, binario: Path, entor
                 codigo, _, timeout = ejecutar_proceso(argv, trabajo, entorno_pruebas(env, trabajo), limite)
                 baselines.append({"codigo": codigo, "timeout": timeout})
             if foto(trabajo) != antes:
+                informe["codigo_motivo"] = "preparacion_caso"
                 raise ValueError("Las pruebas de base modificaron archivos no ignorados. Se conserva el worktree para inspección.")
         informe["estado"] = "en_curso"
         escribir_json(Path(informe["informe"]), informe)
         progreso(f"Analizando · {flujo}")
         prompt = FLUJOS[flujo] + "\n" + FORMATO + "\nObjetivo del usuario:\n" + objetivo
+        informe.update(fase="motor_intentado", costo_usd=None, costo_completo=False)
+        escribir_json(Path(informe["informe"]), informe)
         codigo, texto, agotado = ejecutar_proceso([str(binario), "run", "--format", "json", "--agent", agente], trabajo, env, limite, prompt)
         eventos = leer_eventos(texto)
-        informe.update({k: eventos[k] for k in ("sesiones", "costo_usd")})
+        informe.update({k: eventos[k] for k in ("sesiones", "costo_usd", "pasos", "pasos_con_costo", "pasos_sin_costo", "costo_completo")})
+        informe["fase"] = "motor_finalizado"
         despues = foto(trabajo)
         informe["archivos"] = cambios(antes, despues)
         if flujo != "corregir" and (antes != despues):
             raise ValueError("Se detectaron cambios durante un flujo de lectura; revisar el repositorio.")
         if agotado:
+            informe["costo_completo"] = False
+            informe["codigo_motivo"] = "timeout_motor"
             raise ValueError("Se agotó el tiempo del motor. El trabajo se conserva para inspección.")
         if codigo or eventos["errores_motor"]:
+            informe["costo_completo"] = False
+            informe["codigo_motivo"] = "error_motor"
             raise ValueError("El motor devolvió un error. Consultá cuy doctor; no se considera completada la tarea.")
         informe["entrega"] = validar_entrega(eventos["texto"], trabajo, flujo)
         if flujo == "corregir":
             progreso("Verificando cambios y pruebas autorizadas")
-            if not informe["archivos"]:
+            if not informe["archivos"] and not (baselines and all(p["codigo"] == 0 and not p["timeout"] for p in baselines)):
+                informe["codigo_motivo"] = "sin_cambios"
                 raise ValueError("El motor no produjo cambios verificables.")
             guardar_diff(trabajo, carpeta_tarea / "cambios.patch")
             informe["diff"] = str(carpeta_tarea / "cambios.patch")
@@ -389,9 +410,12 @@ def correr_tarea(flujo: str, objetivo: str, proyecto: Path, binario: Path, entor
             informe["motivo"] = "Referencias existentes y sin cambios detectados. Las conclusiones requieren revisión humana."
     except KeyboardInterrupt:
         informe["estado"] = "interrumpida"
+        informe["codigo_motivo"] = "interrumpida"
         informe["motivo"] = "Cancelada por el usuario; no se reanudará ni aplicará automáticamente."
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         informe["estado"] = "error"
+        informe["codigo_motivo"] = informe["codigo_motivo"] or "error_no_clasificado"
+        informe["error_errno"] = getattr(exc, "errno", None)
         informe["motivo"] = str(exc)
     finally:
         informe["duracion_s"] = round(time.monotonic() - inicio, 1)

@@ -1,0 +1,14 @@
+{
+  "objetivo": "Después de importar el módulo, cambiar CUY_USD_POR_DBU no cambia la tarifa devuelta. Al pasar un factor explícito debe seguir prevaleciendo ese valor. Corregí la inconsistencia.",
+  "prueba": [
+    "{python}",
+    "-m",
+    "unittest",
+    "test_regresion.py"
+  ],
+  "intocables": [
+    "test_regresion.py"
+  ],
+  "referencia": "8425ecf:generar_config.py / tarifa_usd; corregido en 1094fb5",
+  "grupo": "tarifas"
+}

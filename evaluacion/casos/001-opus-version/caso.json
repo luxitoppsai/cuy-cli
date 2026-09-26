@@ -1,0 +1,14 @@
+{
+  "objetivo": "Opus 4.1 usa 214.286/1071.43 DBU por millón; Opus 4.5 conserva 71.429/357.143. No mezcles versiones.",
+  "prueba": [
+    "{python}",
+    "-m",
+    "unittest",
+    "test_regresion.py"
+  ],
+  "intocables": [
+    "test_regresion.py"
+  ],
+  "referencia": "8425ecf:generar_config.py / tarifa_usd; corregido en 1094fb5",
+  "grupo": "tarifas"
+}

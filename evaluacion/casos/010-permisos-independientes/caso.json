@@ -1,0 +1,14 @@
+{
+  "objetivo": "Después de modificar los permisos bash de una configuración, otra configuración recién creada hereda ese cambio. Las configuraciones deben ser independientes y la política base debe conservarse.",
+  "prueba": [
+    "{python}",
+    "-m",
+    "unittest",
+    "test_regresion.py"
+  ],
+  "intocables": [
+    "test_regresion.py"
+  ],
+  "referencia": "7e9aacd^:generar_config.py / construir_permisos; deepcopy presente en 8425ecf",
+  "grupo": "permisos"
+}
