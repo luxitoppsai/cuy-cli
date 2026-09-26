@@ -386,5 +386,44 @@ class VentanaDeContexto(unittest.TestCase):
         self.assertEqual(limite["context"], 200_000)
 
 
+
+class OpcionesDelPassthrough(unittest.TestCase):
+    """El passthrough de Anthropic rechaza campos que el SDK manda por defecto.
+
+    Sin `toolStreaming: false`, el SDK agrega `eager_input_streaming` a cada herramienta y
+    Databricks devuelve `Extra inputs are not permitted`, rechazando la request entera.
+    """
+
+    HOST = "https://ejemplo.cloud.databricks.com"
+
+    def _config(self, nativo: bool):
+        nombre = "databricks-claude-sonnet-4-5"
+        detalles = {nombre: {"forma": "nativa" if nativo else "string", "limite": 8192}}
+        anthropic = ({"auth": "bearer", "cabeceras": {},
+                      "modelos": {nombre: "claude-sonnet-4-5"}} if nativo else None)
+        return gc.construir_config(self.HOST, [{"name": nombre}], detalles, anthropic)
+
+    def test_el_modelo_nativo_desactiva_el_streaming_de_herramientas(self):
+        modelos = self._config(True)["provider"][gc.PROVEEDOR_CLAUDE]["models"]
+        self.assertFalse(modelos["claude-sonnet-4-5"]["options"]["toolStreaming"])
+
+    def test_el_modelo_compatible_no_lleva_esas_opciones(self):
+        """Por el contrato OpenAI el campo no existe: agregarlo sería ruido."""
+        modelos = self._config(False)["provider"][gc.PROVEEDOR]["models"]
+        self.assertNotIn("options", modelos["databricks-claude-sonnet-4-5"])
+
+    def test_cada_modelo_recibe_su_propia_copia(self):
+        """Mutar las opciones de un modelo no debe alcanzar a los demás."""
+        nombres = ["databricks-claude-sonnet-4-5", "databricks-claude-haiku-4-5"]
+        detalles = {n: {"forma": "nativa", "limite": 8192} for n in nombres}
+        anthropic = {"auth": "bearer", "cabeceras": {},
+                     "modelos": {n: n.removeprefix("databricks-") for n in nombres}}
+        modelos = gc.construir_config(self.HOST, [{"name": n} for n in nombres],
+                                      detalles, anthropic)["provider"][gc.PROVEEDOR_CLAUDE]["models"]
+        modelos["claude-sonnet-4-5"]["options"]["toolStreaming"] = True
+        self.assertFalse(modelos["claude-haiku-4-5"]["options"]["toolStreaming"])
+        self.assertFalse(gc.OPCIONES_NATIVAS["toolStreaming"])
+
+
 if __name__ == "__main__":
     unittest.main()

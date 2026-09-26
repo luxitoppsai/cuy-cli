@@ -496,12 +496,34 @@ def contexto_de(endpoint: str) -> int:
     return CONTEXTO_POR_DEFECTO
 
 
-def _describir_modelo(endpoint: str, limite: int) -> dict:
-    """Arma la entrada de un modelo: nombre legible, topes y tarifa."""
+# Opciones que el passthrough de Anthropic en Databricks necesita para no rechazar la
+# request entera. Es un *shim*: habla el contrato pero no acepta todos sus campos.
+#
+# `toolStreaming: false` evita que el SDK agregue `eager_input_streaming` a cada
+# definición de herramienta, que el shim rechaza con
+# `tools.0.custom.eager_input_streaming: Extra inputs are not permitted`. OpenCode ya hace
+# lo mismo para el shim de GitHub Copilot, con el mismo error; su regla no cubre este caso
+# porque solo desactiva el campo cuando el modelo **no** es Claude, y acá sí lo es.
+#
+# Va en la configuración y no en un plugin ni en el motor: `model.options` se mezcla con
+# lo que calcula el motor y tiene precedencia, así que se arregla sin recompilar.
+OPCIONES_NATIVAS = {"toolStreaming": False}
+
+
+def _describir_modelo(endpoint: str, limite: int, nativo: bool = False) -> dict:
+    """Arma la entrada de un modelo: nombre legible, topes, tarifa y opciones.
+
+    :param endpoint: Nombre del endpoint.
+    :param limite: Tope de tokens de salida.
+    :param nativo: Si va por el passthrough de Anthropic, que necesita sus ajustes.
+    :returns: La entrada del modelo para ``opencode.json``.
+    """
     modelo = {
         "name": _nombre_legible(endpoint),
         "limit": {"context": contexto_de(endpoint), "output": limite},
     }
+    if nativo:
+        modelo["options"] = dict(OPCIONES_NATIVAS)
     # Sin `cost`, OpenCode calcula cero y la TUI no muestra el gasto: el indicador
     # de la barra se omite cuando el costo es 0, no aparece en cero.
     tarifa = tarifa_usd(endpoint)
@@ -571,7 +593,7 @@ def construir_config(host: str, endpoints: list[dict], detalles: dict,
             "name": "Databricks (Claude nativo)",
             "options": opciones,
             "models": {
-                por_anthropic[n]: _describir_modelo(n, i["limite"]) for n, i in nativos.items()
+                por_anthropic[n]: _describir_modelo(n, i["limite"], nativo=True) for n, i in nativos.items()
             },
         }
 
