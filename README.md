@@ -207,6 +207,26 @@ hechas fuera del motor, como sondeos de instalación. Los precios, descuentos y 
 caché deben contrastarse con el contrato y consumo del servidor. El límite corporativo
 pertenece al Gateway, fuera del control del usuario local.
 
+## Cómo se trabaja
+
+Desarrollo dirigido por especificación: la estructura de
+[Spec Kit](https://github.com/github/spec-kit) sobre la convención de RFC del equipo. El
+flujo, los identificadores y la compuerta están en [`docs/SDD.md`](docs/SDD.md).
+
+| Documento | Responde |
+|---|---|
+| [`docs/CONSTITUCION.md`](docs/CONSTITUCION.md) | Qué invariantes respeta todo lo que construimos |
+| `docs/rfc/RFC-NNN-*.md` | Qué problema, qué entra, qué **no**, cómo se sabe que está hecho |
+| `docs/specs/NNN-*/plan.md` | Cómo se resuelve, y si respeta la constitución |
+| `docs/specs/NNN-*/tareas.md` | En qué orden, en trozos verificables por separado |
+| `docs/specs/NNN-*/trazabilidad.md` | Qué test prueba cada criterio |
+
+**No se programa con el RFC en borrador**, y no se cierra una spec sin trazabilidad:
+`tests/test_trazabilidad.py` falla si un criterio de aceptación no tiene test que lo cubra.
+
+Ejemplo trabajado: [RFC-002](docs/rfc/RFC-002-redaccion-de-secretos.md) y
+[sus artefactos](docs/specs/002-redaccion-de-secretos/).
+
 ## Secretos y auditoría
 
 El plugin rechaza rutas sensibles conocidas y redacta patrones en salidas de herramientas,

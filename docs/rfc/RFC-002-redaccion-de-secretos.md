@@ -136,15 +136,35 @@ negativos.
 integración con un escáner externo (`gitleaks`, `trufflehog`). Todo eso es razonable y
 ninguno es necesario para cerrar el riesgo principal.
 
+## 5.1 Requisitos funcionales
+
+| ID | Requisito |
+|---|---|
+| RF-001 | El sistema **debe** rechazar la lectura de rutas cuyo contenido es la credencial, antes de leerlas. |
+| RF-002 | El rechazo **debe** aplicar también cuando la ruta aparece dentro de un comando de shell. |
+| RF-003 | El sistema **debe** permitir las plantillas versionables (`.env.example` y equivalentes), que no llevan valores. |
+| RF-004 | El sistema **debe** reemplazar por un marcador los valores con forma reconocible de credencial en la salida de cualquier herramienta. |
+| RF-005 | La redacción **debe** conservar la estructura del texto: misma cantidad de líneas y clave visible. |
+| RF-006 | Una asignación **solo** se redacta con el valor entrecomillado, para no tocar referencias a variables en código normal. |
+| RF-007 | Los valores de relleno declarados en la propia configuración (`{env:…}`, `<…>`, `***`) **no deben** redactarse. |
+| RF-008 | Cada redacción **debe** registrarse en la auditoría con tipo y cantidad, y **nunca** con el valor. |
+| RF-009 | El sistema **no debe** ofrecer una variable de entorno que lo desactive (D6). |
+
 ## 6. Criterios de aceptación
 
-1. `cat .env` por `bash` devuelve un error de permiso, no el contenido.
-2. Un archivo normal que contiene `dapi` + 32 hex se lee con el valor reemplazado, y el
-   resto del archivo intacto.
-3. Un repo sin secretos se lee **idéntico** a como se lee hoy —sin falsos positivos sobre
-   el propio código de este proyecto, que menciona `dapi` y `token` en varios lados—.
-4. La redacción queda anotada en `auditoria.jsonl` sin el valor.
-5. Los tests cubren cada patrón con un caso que debe redactarse y uno que no.
+| ID | Criterio |
+|---|---|
+| CA-001 | `cat .env` por `bash` devuelve un error de permiso, no el contenido. |
+| CA-002 | Un archivo normal que contiene `dapi` + 32 hex se lee con el valor reemplazado y el resto intacto. |
+| CA-003 | Este mismo repositorio se lee **sin una sola redacción**, pese a mencionar `dapi`, `token` y `api_key` en varios lados. |
+| CA-004 | La redacción queda anotada en `auditoria.jsonl` sin el valor. |
+| CA-005 | Cada patrón tiene un caso que debe redactarse y uno que no. |
+
+## 6.1 Artefactos derivados
+
+- Plan y compuerta constitucional: [`docs/specs/002-redaccion-de-secretos/plan.md`](../specs/002-redaccion-de-secretos/plan.md)
+- Tareas: [`docs/specs/002-redaccion-de-secretos/tareas.md`](../specs/002-redaccion-de-secretos/tareas.md)
+- Trazabilidad: [`docs/specs/002-redaccion-de-secretos/trazabilidad.md`](../specs/002-redaccion-de-secretos/trazabilidad.md)
 
 ## 7. Riesgos
 

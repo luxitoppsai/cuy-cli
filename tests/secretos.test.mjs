@@ -8,6 +8,7 @@
  */
 import assert from "node:assert";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -166,9 +167,73 @@ prueba("el propio repo se lee intacto (criterio 3 del RFC)", () => {
   assert.deepEqual(sucios, [], `falsos positivos:\n  ${sucios.join("\n  ")}`);
 });
 
+// --- El plugin entero, con las firmas reales de los hooks ---------------------------
+//
+// Lo de arriba prueba la deteccion; esto prueba que este enganchada donde corresponde.
+// CA-001 y CA-004 se verificaban a mano hasta que la trazabilidad dejo el hueco a la vista.
+
+// `auditoria-core.js` resuelve el destino al importarse, así que la ruta temporal se
+// fija antes del import y no después.
+const AUDITORIA = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "cuy-")), "auditoria.jsonl");
+process.env.CUY_AUDITORIA = AUDITORIA;
+delete process.env.CUY_AUDITORIA_OFF;
+
+const { Secretos } = await import("../plugin/secretos.js");
+
+/** Corre `tool.execute.before` y dice si la llamada quedo bloqueada. */
+async function intentar(hooks, tool, args) {
+  try {
+    await hooks["tool.execute.before"]({ tool }, { args });
+    return null;
+  } catch (e) {
+    return e.message;
+  }
+}
+
+prueba("CA-001: bash no puede leer un archivo de credenciales", async () => {
+  const hooks = await Secretos({});
+  const bloqueado = await intentar(hooks, "bash", { command: "cat .env" });
+  assert.ok(bloqueado, "cat .env deberia estar bloqueado");
+  assert.match(bloqueado, /Lectura bloqueada/);
+  assert.equal(await intentar(hooks, "bash", { command: "ls -la" }), null,
+    "un comando normal no deberia bloquearse");
+  assert.equal(await intentar(hooks, "read", { filePath: "README.md" }), null);
+  assert.ok(await intentar(hooks, "read", { filePath: "proyecto/.env" }));
+});
+
+prueba("CA-002: el valor se reemplaza y el resto del archivo queda igual", async () => {
+  const hooks = await Secretos({});
+  const pat = "dapi" + "0123456789abcdef".repeat(2);
+  const salida = { title: "config.py", output: `HOST = "https://x.com"\nTOKEN = "${pat}"\nDEBUG = True` };
+  await hooks["tool.execute.after"]({ tool: "read", args: { filePath: "config.py" } }, salida);
+  assert.ok(!salida.output.includes(pat), "el valor sigue presente");
+  assert.ok(salida.output.includes("[REDACTADO:databricks-pat]"));
+  assert.ok(salida.output.includes('HOST = "https://x.com"'), "se toco una linea que no debia");
+  assert.ok(salida.output.includes("DEBUG = True"));
+  assert.equal(salida.output.split("\n").length, 3);
+});
+
+prueba("CA-004: la auditoria registra el hallazgo y nunca el valor", async () => {
+  const hooks = await Secretos({});
+  const pat = "dapi" + "0123456789abcdef".repeat(2);
+  await hooks["tool.execute.after"](
+    { tool: "read", args: { filePath: "config.py" } },
+    { title: "x", output: `TOKEN = "${pat}"\nAKIAIOSFODNN7EXAMPLE` },
+  );
+  const crudo = fs.readFileSync(AUDITORIA, "utf8");
+  assert.ok(!crudo.includes(pat), "el registro filtro el valor");
+  assert.ok(!crudo.includes("AKIAIOSFODNN7EXAMPLE"), "el registro filtro el valor");
+  const entrada = JSON.parse(crudo.trim().split("\n").pop());
+  assert.equal(entrada.evento, "secreto.redactado");
+  assert.equal(entrada.ruta, "config.py");
+  assert.deepEqual(entrada.hallazgos.map((h) => h.tipo).sort(),
+    ["aws-access-key", "databricks-pat"]);
+  assert.ok(entrada.hallazgos.every((h) => h.cantidad === 1));
+});
+
 let fallos = 0;
 for (const [nombre, fn] of pruebas) {
-  try { fn(); console.log(`PASS  ${nombre}`); }
+  try { await fn(); console.log(`PASS  ${nombre}`); }
   catch (e) { fallos++; console.log(`FAIL  ${nombre}: ${e.message}`); }
 }
 console.log(fallos ? `\n${fallos} fallo(s)` : `\n${pruebas.length} pruebas en verde`);
