@@ -62,7 +62,9 @@ Entregable independiente: sirve aunque el bloque 3 no exista.
 ## Bloque 6 — Cierre
 
 - [x] **T018** Sección del README diciendo qué cubre y, sobre todo, qué **no** (P7).
-- [x] **T019** `[P]` Bug y causa raíz en el vault: el fixture con el PAT real (P8).
+- [x] **T019** `[P]` Registro histórico externo del incidente del fixture con un PAT real (P8).
+      La causa y prevención están resumidas en P8 de la [constitución](../../CONSTITUCION.md);
+      no se requiere acceso al registro original para trabajar en el proyecto.
 - [x] **T020** Completar [`trazabilidad.md`](trazabilidad.md) y dejar
       `tests/test_trazabilidad.py` en verde.
 

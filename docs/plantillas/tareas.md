@@ -36,7 +36,7 @@ Una tarea por criterio de aceptación, nombrando el criterio que cierra.
 
 - [ ] Documentar en el README qué cubre y qué **no**.
 - [ ] Completar `trazabilidad.md` y dejar `tests/test_trazabilidad.py` en verde.
-- [ ] Registrar en el vault los bugs con causa raíz y las decisiones como ADR.
+- [ ] Registrar en el RFC o plan los bugs con causa raíz y las decisiones relevantes.
 
 ## Orden y paralelismo
 

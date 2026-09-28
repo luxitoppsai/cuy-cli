@@ -1,7 +1,12 @@
 # Evolución: utilidad, eficiencia y gobierno
 
-Fecha: 2026-09-24. Estado: los tres flujos del punto 1 están implementados y probados
-contra un proveedor sintético. El piloto real y las etapas posteriores siguen propuestos.
+Propuesta original: 2026-09-24. Estado revisado: 2026-09-28.
+
+Los tres flujos del punto 1 y el evaluador están implementados y probados localmente
+con proveedores simulados. El baseline real, el piloto y los controles del servidor
+siguen pendientes. Esta hoja de ruta conserva propuestas históricas: las guías de
+[uso](../README.md), [configuración](CONFIGURACION.md) y [evaluación](../evaluacion/README.md)
+describen cómo operar la implementación actual.
 
 ## Qué se busca
 
@@ -14,14 +19,15 @@ intervenciones humanas. Tokens baratos o más agentes no equivalen a productivid
 
 - Configuración del producto independiente del proyecto actual, con plugins fuente y
   política de Cuy aplicada al iniciar.
-- `plan`/`explore` de lectura, shell sujeto a autorización, pasos acotados y retiro de
+- `plan`/`explore` de lectura, shell sujeto a autorización, pasos configurados sin garantía de corte estricto y retiro de
   `scout`; planificación con el modelo capaz.
 - Sondeos fallidos excluidos; descubrimiento compartido; verificación del contrato
   seleccionado, incluido Anthropic nativo.
 - Presupuesto antes de inferencia, contabilidad atómica concurrente y eventos deduplicados;
   costo desconocido bloqueado con tope activo.
 - Auditoría de intentos/resultados y permisos con IDs reales; redacción antes de persistir.
-- Instalación predeterminada por lockfile, release opcional con versión/hash y diagnóstico.
+- Instalación predeterminada por binario publicado, con versión/hash y diagnóstico.
+  El lockfile npm se usa para el motor de contrato en desarrollo y CI.
 - Pruebas del motor con proveedor sintético; CI declarada para tres sistemas.
 
 No se implementó un límite financiero distribuido, sandbox, control inmutable de políticas,
@@ -56,8 +62,12 @@ sin editar JSON ni interpretar logs internos. No basta con un saludo exitoso al 
 
 ## 2. Medir antes de optimizar
 
-Crear un benchmark versionado de 12 casos con repositorios mínimos y tests privados al
-agente cuando se mida generalización:
+Ya existe un evaluador con diez casos de regresión en tres grupos, informes y presupuesto
+propio; el baseline con Databricks sigue pendiente. Véase [evaluación](../evaluacion/README.md).
+
+La siguiente lista de doce casos es una propuesta de ampliación, no el inventario del
+conjunto actual. Usar repositorios mínimos y tests privados al agente cuando se mida
+generalización:
 
 1. Corregir límites inclusivos/exclusivos de rangos.
 2. Reparar manejo de `None` sin cambiar el contrato público.

@@ -24,7 +24,10 @@ aceptación nombra el test que lo prueba, y un test verifica que esa corresponde
 | **Tareas** | En qué orden, en trozos verificables por separado | `docs/specs/NNN-slug/tareas.md` |
 | **Trazabilidad** | Qué test prueba cada criterio | `docs/specs/NNN-slug/trazabilidad.md` |
 
-El RFC sigue donde manda el `CLAUDE.md` global. Lo derivado cuelga de `docs/specs/`.
+Los nuevos RFC viven en `docs/rfc/`; sus artefactos derivados, en `docs/specs/`.
+Estas convenciones son propias del repositorio y no requieren configuración personal
+del editor ni documentos externos. El [RFC inicial](../RFC.md) permanece en la raíz
+como registro histórico.
 
 ## El flujo
 
@@ -67,12 +70,15 @@ deuda.
 
 ## La trazabilidad
 
-`trazabilidad.md` es una tabla de tres columnas: criterio, test que lo prueba, y estado.
+`trazabilidad.md` es una tabla de tres columnas: identificador, nombre del test y archivo. Incluye criterios CA y requisitos RF.
 `tests/test_trazabilidad.py` comprueba tres cosas y falla si alguna no se cumple:
 
-1. Todo `CA-NNN` del RFC aparece en la tabla.
+1. Todo `CA-NNN` y `RF-NNN` del RFC aparece en la tabla.
 2. Todo test nombrado en la tabla existe de verdad en el repo.
-3. Ningún `CA-NNN` de la tabla dejó de existir en el RFC.
+3. Ningún `CA-NNN` o `RF-NNN` de la tabla dejó de existir en el RFC.
+
+El verificador omite specs que aún no tienen tabla y permite excepciones sin test
+automático si están justificadas en sus notas. No certifica el cierre de tareas.
 
 No comprueba que el test *pruebe* lo que dice —eso no lo puede saber un script— pero sí que
 nadie escriba un criterio y se olvide de cubrirlo, que es el modo de fallo real.

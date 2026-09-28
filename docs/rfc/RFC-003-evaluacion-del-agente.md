@@ -293,8 +293,10 @@ H1 es MVP: clasificar bien sin gastar es lo que hace confiable todo lo demás.
 
 Procedimiento acordado: `en-revision` si la enmienda espera aceptación. En este caso,
 **el dueño autorizó aplicar el alcance acordado («hazlo») tras el cierre bilateral en
-REVISION.md, antes de editar esta enmienda**. Se mantiene `aceptado` con este registro
+un registro de revisión de la sesión original, antes de editar esta enmienda**. Se mantiene `aceptado` con este registro
 explícito; la aceptación original por sí sola no autorizaba el texto nuevo.
+El registro externo no es un requisito para usar esta spec: el alcance acordado queda
+recogido en esta enmienda y sus artefactos derivados.
 Base histórica: HEAD `aec0ffc` (RFC original) y primera implementación aún no commiteada.
 
 Se aclaran fases y contabilidad (RF-010/RF-012), integridad, motivos estructurados y

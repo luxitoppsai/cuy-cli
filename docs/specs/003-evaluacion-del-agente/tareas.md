@@ -12,8 +12,18 @@ Orden: T001/T002/T003 antes de T004; T005 y T006 antes del baseline.
 
 ## Enmienda 1
 
-- [ ] T008 Fases, códigos y límite efectivo desde tareas; integridad explícita.
-- [ ] T009 Errores locales/globales, manifiestos inválidos, costos preservados y no ejecutados.
-- [ ] T010 Grupos explícitos, dos objetivos por síntoma y agregados parciales.
-- [ ] T011 Validación diferida del plugin y tests de rechazo sin inferencia.
-- [ ] T012 Main, aritmética, regresiones, trazabilidad y documentación verificadas.
+- [x] T008 Fases, códigos y límite efectivo desde tareas; integridad explícita.
+- [x] T009 Errores locales/globales, manifiestos inválidos, costos preservados y no ejecutados.
+- [x] T010 Grupos explícitos, dos objetivos por síntoma y agregados parciales.
+- [x] T011 Validación diferida del plugin y tests de rechazo sin inferencia.
+- [x] T012 Main, aritmética, regresiones, trazabilidad y documentación verificadas.
+
+## Verificación de estado — 2026-09-28
+
+Se reconciliaron T008–T012 con la implementación, la tabla de trazabilidad y las
+pruebas actuales. `python3 -m unittest discover tests` terminó sin fallos: 129 pruebas,
+con cuatro omisiones del contrato del motor por no configurar `CUY_TEST_BINARIO`.
+`npm test` terminó sin fallos, incluidos los hooks de presupuesto de evaluación.
+La suite Python incluye las 25 pruebas del evaluador y las cinco de trazabilidad.
+Esta evidencia cierra la implementación local de la enmienda; no acredita una corrida
+con Databricks. T007 permanece pendiente.

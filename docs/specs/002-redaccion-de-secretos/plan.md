@@ -43,8 +43,8 @@ Recorrida antes de implementar. Cada principio dice cómo se cumple o por qué n
 | **P5** Precisión sobre cobertura | Central al diseño. La asignación solo se redacta entrecomillada (RF-006) y CA-003 exige cero falsos positivos sobre este repositorio. |
 | **P6** Fallar cerrado | `mensajeDeRechazo` explica el siguiente paso, no solo prohíbe. Un patrón dudoso no se redacta a medias: o se redacta entero o no se toca. |
 | **P7** Barrera vs control | Declarado explícitamente en §2 del RFC y repetido en el README: es barrera. El control duro vive en el Gateway. |
-| **P8** El secreto no toca el disco | Los fixtures se construyen (`"dapi" + "0123456789abcdef".repeat(2)`); la auditoría registra tipo y cantidad, nunca el valor (RF-008). |
-| **P9** KISS / YAGNI | Sin dependencias ni escáner externo. `rutaProhibidaEnComando` parte por palabras y no intenta entender la sintaxis del shell: lo que se le escapa lo agarra la redacción de la salida. |
+| **P8** Secretos fuera de fixtures y registros | Los fixtures se construyen (`"dapi" + "0123456789abcdef".repeat(2)`); la auditoría registra tipo y cantidad, nunca el valor (RF-008). |
+| **P9** KISS / YAGNI | Sin dependencias ni escáner externo. `rutaProhibidaEnComando` parte por palabras y no intenta entender la sintaxis del shell: la redacción de salida cubre solo patrones reconocibles, no todo lo que se escape. |
 | **P10** El porqué donde vive el código | Docstrings en `secretos-core.js` y nota en el README sobre qué **no** cubre. |
 
 **Violaciones declaradas:** ninguna.
@@ -88,8 +88,11 @@ para versionarse.
 ### Efecto de segundo orden
 
 Si el agente intenta reescribir una línea redactada, su `oldString` no coincide con el
-archivo real y la edición falla. La redacción **no puede** pisar un secreto con
-`[REDACTADO]` en disco. Falla cerrado sin haberlo programado.
+archivo real y la edición falla. Esto solo aplica al reemplazo por coincidencia.
+
+Aclaración de alcance (2026-09-28): una reescritura completa sí puede sustituir el
+valor por `[REDACTADO]`. La redacción no garantiza preservar secretos al editar;
+se debe revisar el diff, como aclara D4 del RFC.
 
 ## Estructura
 

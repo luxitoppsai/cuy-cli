@@ -1,12 +1,15 @@
 # Nunca versionar credenciales
 .env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
 *.token
 .databrickscfg
 
 __pycache__/
 *.pyc
 .DS_Store
-node_modules/
 node_modules/
 spike/tarea/opencode.json
 
@@ -29,3 +32,11 @@ dist-release/
 
 # Revisión cruzada entre agentes: conversación de trabajo, no documentación
 REVISION.md
+
+# Entornos Python y cachés locales
+.venv/
+venv/
+.pytest_cache/
+
+# Demo HTML generada localmente; docs/demo.html permanece versionado
+/cuy-demo.html

@@ -3,7 +3,7 @@ tipo: plan
 spec: RFC-NNN
 proyecto: cuy-cli
 fecha: AAAA-MM-DD
-constitucion: 1.0.0
+constitucion: 1.0.1
 ---
 
 # Plan — RFC-NNN, {{título}}
@@ -45,7 +45,7 @@ y hay que escribirla.
 | **P5** Precisión sobre cobertura | |
 | **P6** Fallar cerrado | |
 | **P7** Barrera vs control | |
-| **P8** El secreto no toca el disco | |
+| **P8** Credenciales fuera de repositorio y registros | |
 | **P9** KISS / YAGNI | |
 | **P10** El porqué donde vive el código | |
 
@@ -56,7 +56,7 @@ decisión; una silenciosa es deuda.
 ## Diseño
 
 Cómo se resuelve. Módulos, flujo de datos, dónde se engancha. Las decisiones no obvias se
-justifican acá y, si son estructurales, además como ADR en el vault.
+justifican acá o en el RFC; deben ser accesibles desde el repositorio.
 
 ## Estructura
 

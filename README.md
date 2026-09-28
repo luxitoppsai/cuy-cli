@@ -1,387 +1,193 @@
 # cuy-cli
 
-Asistente de programación en terminal sobre **OpenCode + Databricks Model Serving**.
-Python resuelve instalación, descubrimiento y lanzamiento; OpenCode ejecuta el agente;
-los plugins locales agregan presupuesto, auditoría y redacción de secretos.
+**Un asistente de programación en tu terminal que usa los modelos disponibles en tu workspace de Databricks.** Puedes pedirle que explique un proyecto, busque errores, revise código o implemente cambios, sin salir del repositorio en el que trabajas.
 
-**Estado:** prototipo con pruebas unitarias y una prueba de contrato del motor contra un
-proveedor sintético. La calidad de tareas completas con los modelos del workspace debe
-validarse con evaluaciones reales antes de desplegar al equipo.
+Cuy usa OpenCode como motor e incorpora configuración para Databricks, permisos de herramientas, seguimiento del gasto y auditoría local.
 
-## Instalar y usar
+> **Estado:** prototipo. Los flujos tienen pruebas automatizadas y de integración con un proveedor simulado; sigue pendiente validar su calidad con modelos reales del workspace. Revisa sus respuestas y cambios antes de incorporarlos a tu proyecto.
 
-Requisitos: Python 3.10+ y Node/npm para el camino predeterminado.
+## Para qué sirve
+
+- **Entender código:** localizar dónde se implementa una función y explicar cómo funciona, con referencias a archivos.
+- **Revisar un problema:** buscar posibles errores y recibir hallazgos con ubicación, severidad e impacto.
+- **Hacer cambios:** pedir una implementación en una conversación o ejecutar una corrección aislada con pruebas y un diff para revisar.
+
+Puedes usarlo de dos formas: una **conversación interactiva** para trabajar paso a paso, o una **tarea por comando** para obtener un informe concreto.
+
+## Antes de empezar
+
+Necesitas:
+
+- **Python 3.10 o posterior** y **Git**.
+- Un equipo con **Windows, macOS o Linux** (x64 o ARM64).
+- La URL de tu workspace de **Databricks** y un token válido con acceso a los endpoints que vas a usar.
+- Conexión a tu workspace y al servidor de distribución del ejecutable.
+
+La instalación normal descarga un binario preparado para tu sistema y verifica su checksum. **No necesitas Node, npm ni Bun.** Las consultas a modelos consumen recursos de Databricks; la instalación también realiza consultas para descubrir y comprobar modelos.
+
+## Instalación
+
+Usa la URL de clonación que proporcione tu equipo en lugar de `URL_DEL_REPOSITORIO`.
+Los ejemplos crean una carpeta local llamada `cuy-cli`, independientemente del nombre
+del repositorio remoto. Las rutas de ejemplo se sustituyen por las de tu equipo.
+
+### macOS y Linux
 
 ```bash
-git clone https://github.com/luxitoppsai/cuy-cli.git
+git clone "URL_DEL_REPOSITORIO" cuy-cli
 cd cuy-cli
-python3 instalar.py                 # en Windows: python
-./cuy                              # en Windows: cuy.cmd
-```
-
-La instalación usa `npm ci` y la versión exacta de `package-lock.json`. Pide host HTTPS
-y token, descubre modelos, escribe configuración y comprueba una respuesta con el
-contrato del proveedor elegido. Esta prueba consume tokens y no acredita edición ni
-calidad agéntica. `--sin-verificar` omite esa llamada final; el descubrimiento también
-hace llamadas. `--rapido` omite solamente el sondeo de límites de salida.
-
-La configuración queda en `opencode.json` y el token en `.env` (ignorados por git).
-Las variables ya exportadas tienen precedencia. Cambiar de workspace requiere ejecutar
-nuevamente el instalador y proporcionar la credencial correspondiente.
-
-Para trabajar en otro proyecto, invocá el lanzador por su ruta:
-
-```bash
-cd /ruta/al/proyecto
-/ruta/a/cuy-cli/cuy
-/ruta/a/cuy-cli/cuy doctor
-/ruta/a/cuy-cli/cuy doctor --json
-/ruta/a/cuy-cli/cuy gasto
-```
-
-El proyecto sigue siendo el directorio actual. El lanzador carga la configuración y los
-plugins fuente de Cuy por rutas absolutas, sin copiar plugins ni depender de la carpeta
-`.opencode` del proyecto. También aplica las restricciones actualizadas a configuraciones
-generadas por versiones anteriores. Los `opencode.json` y plugins locales del proyecto
-no se cargan. Las instrucciones de trabajo deben vivir en `AGENTS.md`.
-
-`doctor` comprueba archivos, configuración efectiva de Cuy, tarifas, credencial presente,
-contabilidad y versión del ejecutable. No imprime el token. **No certifica** la carga
-real de hooks, aislamiento de red ni políticas del servidor. `doctor --verificar` agrega
-una llamada real y facturable al proveedor configurado.
-
-## Entender, corregir y revisar
-
-```bash
-./cuy inicio                          # portada y estado local
-./cuy tarea entender "Explicá el recorrido de un pedido"
-./cuy tarea revisar "Buscá regresiones en src/stock.py"
-./cuy tarea corregir "Corregí el límite de reserva" --prueba "python -m unittest tests.test_stock"
-./cuy demo                            # resultado de ejemplo, sin inferencia
-```
-
-En Windows se usa `cuy.cmd`. Los tres flujos requieren un repositorio Git con un commit.
-`--proyecto /ruta/al/repo` elige otro proyecto. `--json` devuelve el informe estructurado.
-`--timeout 600` fija el tiempo máximo del motor y de **cada** prueba; no es un límite total
-ni un presupuesto por tarea.
-
-| Flujo | Entregable | Comprobación del lanzador |
-|---|---|---|
-| Entender | Resumen y referencias | Las rutas/líneas existen; sin cambios detectados |
-| Revisar | Hallazgos con severidad, evidencia e impacto | Ubicaciones válidas; sin cambios detectados |
-| Corregir | Worktree, diff exportado e informe | Pruebas explícitas antes/después; original sin cambios detectados |
-
-Los agentes de tarea tienen permisos propios: lectura/búsqueda y, solo para corregir,
-edición. No reciben shell, delegación ni acceso fuera del directorio. `revisar` analiza
-el código actual indicado por el usuario; no reconstruye automáticamente un diff histórico.
-La validez de una referencia no demuestra que la conclusión del modelo sea correcta.
-
-**Corregir exige un árbol limpio** y crea un worktree separado desde HEAD. Si hay cambios
-previos, los conserva y no inicia la corrección. Entender/revisar sí pueden analizar el
-estado actual con cambios pendientes. No se copian archivos ignorados, credenciales ni
-entornos de dependencias al worktree. Las pruebas deben poder ejecutarse en ese entorno.
-
-`--prueba` es una autorización explícita para ejecutar ese comando **antes y después** de
-la edición; se puede repetir. Se ejecuta como lista de argumentos, sin shell ni operadores
-como `&&` o pipes. Para rutas con espacios o separadores Windows, entrecomillá el ejecutable
-dentro del argumento. Las pruebas ejecutan código con los permisos del usuario; no son un
-sandbox. Se retiran las credenciales conocidas del proveedor y su configuración del entorno
-del proceso de prueba. No se transmite la salida cruda de las pruebas al modelo.
-
-Un cambio solo aparece **VERIFICADA** si se entregó el informe requerido, hubo cambios y
-todas las pruebas elegidas terminaron con código 0 sin timeout. No significa ausencia de
-bugs: solo acredita esas comprobaciones. Sin pruebas o con pruebas fallidas queda
-**SIN VERIFICAR** (exit code 2). Errores del motor, formato inválido, referencias inventadas,
-cambios inesperados o cancelación no se presentan como éxito (exit code 1).
-Entender/revisar válidos se marcan **ENTREGADA · por revisar** (exit code 0).
-
-El informe conserva base Git, cambios detectados, sesiones, duración, costo reportado por
-los pasos y códigos de prueba antes/después. La detección compara archivos versionados y
-no ignorados; no inspecciona todo el sistema, archivos ignorados ni el interior de submódulos.
-Si las pruebas modifican archivos no ignorados se pide inspección, no se acepta el cambio
-como verificado. El costo de pasos no incluye necesariamente llamadas auxiliares del motor.
-
-Resultados en `~/.local/share/cuy-cli/tareas/<id>/` (`CUY_TAREAS` permite otra carpeta **fuera**
-del proyecto): `base.json`, `resultado.json`, `cambios.patch` y el worktree cuando corresponda.
-El patch incluye archivos nuevos sin staging ni commits automáticos. El informe y el diff
-pueden contener información del proyecto: se guardan localmente, con permisos restrictivos
-cuando el sistema los soporta. No se exportan a otro servicio.
-
-Inspeccioná el resultado con `git -C <worktree> status --short`, `git -C <worktree> diff` y
-el patch exportado. La aplicación al repositorio original y la limpieza del worktree son
-manuales. No hay auto-commit, auto-publicación ni reanudación automática tras interrupción.
-
-### Vista visual
-
-[Demo interactiva local](docs/demo.html) · [captura renderizada](docs/demo.png).
-Los ejemplos son simulados y usan el mismo renderizador de resultados que las tareas reales.
-
-```bash
-./cuy demo --flujo entender
-./cuy demo --flujo revisar
-./cuy demo --flujo pendiente
-./cuy demo --html /tmp/cuy-demo.html
-```
-
-La demo no llama al modelo. La terminal adapta el ancho y desactiva colores al redirigir
-salida o definir `NO_COLOR`. La página tiene pestañas navegables por teclado y permite
-inspeccionar los estados sin ejecutar tareas.
-
-## Origen y actualización del motor
-
-- **Predeterminado:** descarga el binario de **cuycli** publicado para tu sistema,
-  fijado por `release.json`, y verifica su SHA-256 antes de instalarlo.
-- En la computadora de trabajo solo hace falta Python: **no Bun, npm ni compilación**.
-- `--reparar-motor` vuelve a descargar el binario sin consultar Databricks.
-- `--compilar` es una opción explícita para desarrollo, en el equipo que tiene Bun.
-- `python3 instalar.py --binario-manifiesto release.json`: descarga una release propia
-  fijada por un manifiesto local revisado. Exige `version` y un mapa `sha256` por nombre
-  de artefacto (`cuy-darwin-arm64`, `cuy-windows-x64.exe`, etc.). No acepta `latest`.
-
-### VS Code Web en Azure Machine Learning
-
-Las instancias de cómputo Linux x86-64 usan el artefacto `cuy-linux-x64` de la release
-`v0.4.2`. Desde el terminal de VS Code Web, dentro del clon del proyecto, ejecutá:
-
-```sh
-python3 instalar.py --reparar-motor
+python3 instalar.py
 ./cuy
 ```
 
-El instalador descarga el binario, verifica su SHA-256 y no necesita Bun ni npm. Si solo
-querés comprobar el artefacto sin volver a configurar el workspace:
-
-```sh
-python3 instalar.py --reparar-motor --sin-compilar
-```
-
-La arquitectura esperada es `x86_64`; en una instancia ARM corresponde `cuy-linux-arm64`.
-El binario es nativo de Linux y no se puede ejecutar desde macOS para probarlo localmente.
-
-Las descargas se validan antes de reemplazar el ejecutable. No se publica un manifiesto
-con hashes inventados: quien construye la release debe producirlo y revisarlo. Un hash
-comprueba integridad respecto del manifiesto; no sustituye su procedencia confiable.
-
-La selección instalada queda en `bin/seleccion.json`, evitando que una descarga antigua
-oculte una compilación o instalación posterior. Las instalaciones anteriores mantienen
-su selección por compatibilidad hasta reinstalar.
-
-El fuente vendorizado y un binario pueden diferir. Ejecutá las pruebas del motor real
-antes de aprobar una actualización. Cambiar el lockfile es deliberado; repetí también
-la auditoría de red. La observación histórica en [spike/RED.md](spike/RED.md) solo describe
-la versión y los escenarios allí medidos.
-
-En redes corporativas con certificados propios, configurá `NODE_EXTRA_CA_CERTS`. El
-build intenta exportar raíces del sistema en Windows. No desactives la validación TLS.
-
-## Agentes y permisos
-
-| Rol | Modelo inicial | Herramientas |
-|---|---|---|
-| `build` | Preferencia Sonnet; respaldo por nombre/tamaño estimado | Edición habilitada, shell sujeto a política; hasta 30 pasos |
-| `plan` | El mismo modelo capaz que `build` | Lectura y búsqueda; sin shell, edición ni delegación; hasta 15 pasos |
-| `explore` | Preferencia Haiku; respaldo económico estimado | Subagente de lectura y búsqueda; hasta 15 pasos |
-
-`scout` se retiró porque duplicaba `explore` y no tenía restricciones propias.
-La selección por nombre es una heurística: no constituye una evaluación de capacidad.
-Los límites de contexto son valores operativos configurados y las tarifas tienen un alcance declarado; no son
-capacidades descubiertas del servidor.
-
-La política global no incluye `*: allow`: preserva restricciones nativas. Los roles de
-lectura tienen una lista explícita de herramientas permitidas. Tests, `npm run` y `make`
-piden permiso: ejecutan código del repositorio. Los patrones destructivos conocidos se
-rechazan. La política está en `construir_permisos()` y el lanzador la aplica al arrancar;
-modificar `permission` en el JSON generado no altera esa política.
-
-**Los patrones de shell no son un sandbox.** Un comando permitido puede ejecutar código,
-escribir o usar la red. En ejecución headless, una acción que pide permiso puede ser
-rechazada por el motor; no asumas que una prueba pendiente fue ejecutada.
-
-## Presupuesto y eficiencia
-
-```bash
-python3 gasto.py
-CUY_LIMITE_USD=3 ./cuy              # macOS/Linux
-# PowerShell: $env:CUY_LIMITE_USD="3"; .\cuy.cmd
-```
-
-El plugin comprueba el gasto mensual en `chat.params`, **antes de cada inferencia que
-pasa por ese hook**, además de impedir nuevas herramientas al alcanzar el límite. Relee
-el archivo en cada comprobación, por lo que detecta cambios de mes y gasto de otras
-sesiones. Cuenta eventos `step-finish` una sola vez por identificador.
-
-La persistencia usa lock entre procesos y reemplazo atómico. Un archivo corrupto o un
-fallo contable bloquea la siguiente inferencia; no se interpreta como cero. Un lock
-huérfano tras un cierre abrupto requiere revisar procesos activos antes de retirarlo.
-El archivo está en `~/.local/share/cuy-cli/gasto.json` (`CUY_GASTO` cambia la ruta).
-
-Con tope activo, un modelo sin tarifas positivas `cost.input`/`cost.output` se rechaza.
-**Costo desconocido no significa gratis.** Se pueden declarar tarifas del contrato en
-el modelo de `opencode.json`; `CUY_USD_POR_DBU` ajusta la conversión al regenerar.
-`CUY_LIMITE_USD=0` desactiva explícitamente el tope local.
-
-Es una **estimación local**, no un límite de facturación estricto: una petición iniciada
-antes del corte puede exceder el saldo y varias peticiones simultáneas pueden estar en
-vuelo. No reserva costo por anticipado, no cancela otras sesiones ni incluye llamadas
-hechas fuera del motor, como sondeos de instalación. Los precios, descuentos y tokens de
-caché deben contrastarse con el contrato y consumo del servidor. El límite corporativo
-pertenece al Gateway, fuera del control del usuario local.
-
-## Cómo se trabaja
-
-Desarrollo dirigido por especificación: la estructura de
-[Spec Kit](https://github.com/github/spec-kit) sobre la convención de RFC del equipo. El
-flujo, los identificadores y la compuerta están en [`docs/SDD.md`](docs/SDD.md).
-
-| Documento | Responde |
-|---|---|
-| [`docs/CONSTITUCION.md`](docs/CONSTITUCION.md) | Qué invariantes respeta todo lo que construimos |
-| `docs/rfc/RFC-NNN-*.md` | Qué problema, qué entra, qué **no**, cómo se sabe que está hecho |
-| `docs/specs/NNN-*/plan.md` | Cómo se resuelve, y si respeta la constitución |
-| `docs/specs/NNN-*/tareas.md` | En qué orden, en trozos verificables por separado |
-| `docs/specs/NNN-*/trazabilidad.md` | Qué test prueba cada criterio |
-
-**No se programa con el RFC en borrador**, y no se cierra una spec sin trazabilidad:
-`tests/test_trazabilidad.py` falla si un criterio de aceptación no tiene test que lo cubra.
-
-Ejemplo trabajado: [RFC-002](docs/rfc/RFC-002-redaccion-de-secretos.md) y
-[sus artefactos](docs/specs/002-redaccion-de-secretos/).
-
-## Secretos y auditoría
-
-El plugin rechaza rutas sensibles conocidas y redacta patrones en salidas de herramientas,
-títulos y metadatos. Incluye PATs, claves privadas, asignaciones entre comillas en código
-y JSON, y cabeceras Bearer/Basic. La auditoría aplica saneamiento antes de persistir,
-incluyendo argumentos y parámetros de URL reconocibles.
-
-La cobertura es deliberadamente limitada: regex no reconoce todos los secretos, alias,
-enlaces simbólicos, archivos adjuntos ni valores transformados. No redacta el prompt que
-una persona pega directamente. Un archivo `.env.example` puede leerse; su nombre no
-prueba que sus valores sean inocuos. La redacción tampoco garantiza que una reescritura
-completa de archivo preserve un valor que el modelo no vio.
-
-```bash
-python3 auditar.py
-python3 auditar.py --comandos
-python3 auditar.py --archivos --dias 30
-```
-
-El registro usa `sessionID` y `callID` reales. Distingue `herramienta.intento` de
-`herramienta.resultado` (`completed` o `error`); una sesión `idle` queda como estado, no
-como cierre definitivo. Captura eventos `permission.asked` y `permission.replied`.
-No todas las denegaciones automáticas emiten una consulta: el resultado de herramienta
-puede mostrar el fallo sin atribuir su causa. No se guardan salida, contenido editado ni
-texto de errores.
-
-Los informes muestran resultados completados. Registros antiguos sin resultado no se
-consideran éxito. Ubicación: `~/.local/share/cuy-cli/auditoria.jsonl`, configurable con
-`CUY_AUDITORIA`. Retención de 90 días (`CUY_RETENCION_DIAS`); la limpieza y los append
-comparten lock. `CUY_AUDITORIA_OFF=1` desactiva el registro local.
-
-**No es evidencia inmutable:** el usuario puede modificar plugins, políticas y registros.
-La atribución local tampoco sustituye la identidad autenticada de Databricks.
-
-## Red y gobierno
-
-El lanzador desactiva actualización automática, descarga de catálogo, compartir sesiones,
-descarga de LSP y skills externas. Esto reduce conexiones automáticas conocidas; **no es
-un firewall ni garantiza que solo se contacte Databricks**. Dependencias, configuraciones
-globales de OpenCode, plugins, MCP y herramientas pueden introducir otras conexiones.
-Los controles locales no aíslan código malicioso ni administradores del equipo.
-
-Para gobierno corporativo hacen falta controles independientes: autenticación central,
-allowlist de modelos, restricciones de salida, presupuesto y auditoría del servidor.
-El plan de evolución con criterios verificables está en
-[docs/EVOLUCION.md](docs/EVOLUCION.md).
-
-## Pruebas
-
-```bash
-python3 -m unittest discover tests
-node --test tests/*.test.mjs
-
-# Contrato con el ejecutable real, proveedor local sintético y carpetas temporales:
-CUY_TEST_BINARIO="$PWD/bin/cuy" python3 -m unittest discover -s tests -p test_motor.py
-# También se puede apuntar a node_modules/opencode-ai/bin/opencode.exe.
-```
-
-La prueba del motor comprueba edición y auditoría, ausencia de herramientas de escritura
-en `plan`, bloqueo antes de llegar al proveedor cuando se agotó el presupuesto y el flujo
-completo de corrección aislada con prueba antes/después y patch exportado. Usa
-localhost y credenciales ficticias: no llama a Databricks ni mide calidad del modelo.
-Sin `CUY_TEST_BINARIO`, esas pruebas se omiten explícitamente. CI ejecuta pruebas unitarias
-y de contrato con el paquete fijado en Windows, macOS y Linux.
-
-Los RFC y spikes conservan decisiones e hipótesis históricas; este README describe el
-comportamiento actual.
-
-### Si Databricks devuelve HTTP 401 al listar endpoints
-
-El descubrimiento consulta `GET /api/2.0/serving-endpoints` del workspace de
-Databricks. Un 401 indica que se rechazó la autenticación, antes de probar los
-modelos. Revisá que `DATABRICKS_HOST` sea la URL raíz del workspace correcto y
-que su PAT o access token OAuth siga vigente.
-
-La variable `DATABRICKS_TOKEN` del entorno tiene prioridad sobre `.env`.
-Actualizala si está definida. Si preferís usar el archivo, eliminá la variable
-de la terminal (`Remove-Item Env:DATABRICKS_TOKEN` en PowerShell o
-`unset DATABRICKS_TOKEN` en macOS/Linux) y ejecutá:
-
-```sh
-python instalar.py --renovar-token --host https://TU-WORKSPACE
-```
-
-El token se pide de forma oculta y se reemplaza sin borrar las otras opciones de
-`.env`. En macOS/Linux podés necesitar `python3`. Las comillas y `export` en
-`.env` están admitidos. No pegues credenciales en comandos, capturas ni reportes.
-
-### Windows: «Esta aplicación no se puede ejecutar en el equipo»
-
-En PowerShell usá `.\cuy.cmd`. Primero comprobá `python --version`: si también
-falla, hay que reparar la instalación de Python para ese equipo. Si Python funciona,
-reinstalá el motor desde la carpeta del proyecto:
+### Windows · PowerShell
 
 ```powershell
-python instalar.py --reparar-motor
+git clone "URL_DEL_REPOSITORIO" cuy-cli
+cd cuy-cli
+python instalar.py
 .\cuy.cmd
 ```
 
-La reparación requiere Python y acceso a la release de GitHub, pero no consulta Databricks ni
-modifica el token o la configuración de modelos. Descarga el motor con la marca cuycli y actualiza el ejecutable seleccionado. No copies `node_modules` ni los
-binarios compilados de macOS/Linux a Windows. El lanzador valida el formato Windows
-antes de intentar ejecutar el agente; esa validación no sustituye una prueba en la
-versión y arquitectura de Windows de destino.
+El instalador solicita la URL del workspace y el token de forma oculta, descubre los modelos disponibles, genera la configuración y comprueba una respuesta. Guarda el token solicitado en `.env` (o reutiliza el del entorno) y la configuración en `opencode.json`, dentro de la carpeta de Cuy; ambos están excluidos de Git.
 
-### Preparar una release desde el equipo de desarrollo
+Si cambias de workspace, vuelve a ejecutar el instalador con la URL y la credencial correspondientes.
 
-```sh
-python3 scripts/preparar_release.py 0.3.0
+## Primera conversación en tu proyecto
+
+Abre una terminal en el proyecto que quieres analizar y ejecuta Cuy por su ruta. Sustituye las rutas de ejemplo por las de tu equipo.
+
+**macOS y Linux:**
+
+```bash
+cd /ruta/a/mi-proyecto
+/ruta/a/cuy-cli/cuy
 ```
 
-Este paso usa Bun **solo en el equipo de desarrollo** y prepara los ejecutables de
-Windows x64 y macOS ARM64 en `dist-release/v0.3.0/`, junto con sus hashes reales.
-Publicar esos archivos en la release `v0.3.0`, copiar su `release.json` a la raíz del
-repositorio y subir los cambios. `--targets` permite preparar otras plataformas.
-El equipo de trabajo clona o actualiza el repositorio y ejecuta `python instalar.py`.
+**Windows · PowerShell:**
 
-### Inicio guiado y estado de cuycli
+```powershell
+cd C:\ruta\a\mi-proyecto
+& "C:\ruta\a\cuy-cli\cuy.cmd"
+```
 
-- `/empezar` ofrece **Entender el proyecto**, **Revisar un problema** y **Hacer un cambio**.
-  La elección prepara un borrador editable; no envía solicitudes ni ejecuta cambios.
-  Conserva el texto y los archivos que ya estuvieran adjuntos.
-- El inicio muestra workspace, modelo, modo y límite mensual. «Configuración cargada»
-  no significa que se haya comprobado la conexión: eso ocurre al enviar la solicitud.
-- Planificar usa el agente de lectura; Editar mantiene los permisos configurados.
-- La barra lateral distingue costo estimado de la conversación y límite mensual.
-  No presenta un gasto global calculado como si fuera un saldo disponible.
-- Los errores habituales de Databricks incluyen pasos concretos para resolverlos.
-- En terminales pequeñas, el panel inicial se oculta para dejar espacio al mensaje.
+Cuy trabaja sobre la carpeta actual. Dentro de la interfaz, escribe `/empezar` para elegir **Entender el proyecto**, **Revisar un problema** o **Hacer un cambio**. La elección prepara un mensaje que puedes editar antes de enviarlo.
 
-### Evaluar correcciones y su costo
+También puedes escribir directamente, por ejemplo:
 
-`python evaluar.py --seco` valida los diez casos de regresión sin llamar modelos.
-`python evaluar.py --presupuesto-usd 0.50` ejecuta la evaluación real usando la instalación
-actual, con presupuesto propio además del mensual. El informe distingue total estimado
-completo de **total parcial**. No requiere Bun ni recompilar.
+```text
+Explícame cómo se procesa un pedido y qué archivos intervienen. No modifiques nada.
+```
 
-[Uso, límites y procedencia de los casos](evaluacion/README.md).
+```text
+Revisa src/stock.py y busca errores en la validación de cantidades. Cita las líneas afectadas.
+```
+
+Usa **Planificar** para lectura y análisis, y **Editar** para implementar cambios con los permisos configurados. En la conversación interactiva, las ediciones se realizan sobre tu proyecto: revisa el diff antes de guardar un commit. Puedes elegir otro modelo disponible con `/models`.
+
+Si tu proyecto tiene instrucciones de trabajo, colócalas en `AGENTS.md`. Cuy usa su propia configuración; no carga los archivos `opencode.json` ni los plugins locales del proyecto.
+
+## Tareas con un resultado para revisar
+
+Los comandos `tarea` requieren un repositorio Git con al menos un commit. Estos ejemplos parten de la carpeta donde instalaste Cuy; `--proyecto` indica el repositorio de trabajo. En Windows, sustituye `./cuy` por `.\cuy.cmd`.
+
+```bash
+./cuy tarea entender "Explica el recorrido de un pedido" --proyecto /ruta/al/repo
+./cuy tarea revisar "Busca regresiones en src/stock.py" --proyecto /ruta/al/repo
+./cuy tarea corregir "Corrige el límite de reserva" --proyecto /ruta/al/repo --prueba "python -m unittest tests.test_stock"
+```
+
+Adapta la ruta, el objetivo y el comando de prueba a tu proyecto.
+
+| Tarea | Qué recibes | Dónde trabaja |
+|---|---|---|
+| `entender` | Explicación con referencias a archivos y líneas | Proyecto actual, en lectura |
+| `revisar` | Hallazgos con evidencia e impacto | Proyecto actual, en lectura |
+| `corregir` | Informe, diff y resultados de pruebas | Copia de trabajo separada de Git (*worktree*) |
+
+Para **corregir**, el repositorio debe estar limpio, sin cambios pendientes. Cuy crea el worktree desde el último commit y ejecuta las pruebas indicadas antes y después de la edición. Puedes repetir `--prueba` para ejecutar varios comandos. Estos se ejecutan con tus permisos, sin shell: no admiten `&&` ni pipes. Las dependencias y archivos ignorados no se copian al worktree; las pruebas deben poder funcionar allí.
+
+El resultado indica:
+
+- **ENTREGADA · por revisar:** terminó el análisis de `entender` o `revisar`.
+- **VERIFICADA:** todas las pruebas indicadas pasaron y el informe superó las comprobaciones del flujo. También puede ocurrir sin cambios si la base ya pasaba las pruebas.
+- **SIN VERIFICAR:** faltan pruebas o no pasaron. Requiere revisión antes de usar el cambio.
+
+«Verificada» acredita esas pruebas, no la ausencia de errores. Los fallos de ejecución o informes inválidos se muestran como errores.
+
+Los resultados quedan en `~/.local/share/cuy-cli/tareas/<id>/` (`~` representa la carpeta personal del usuario, también en Windows), con el informe `resultado.json`, el patch `cambios.patch` y el worktree cuando corresponde. Revisa el informe y el patch; **aplicar la corrección al proyecto original y eliminar el worktree son pasos manuales**. Sigue la [guía para revisar, aplicar y limpiar una corrección](docs/CORRECCIONES.md). Cuy no crea commits ni publica cambios automáticamente en este flujo.
+
+Consulta las [opciones y comprobaciones de las tareas](docs/REFERENCIA.md#entender-corregir-y-revisar) para salida JSON, tiempos máximos y detalles de verificación.
+
+## Comandos útiles
+
+Desde la carpeta de instalación (o usando la ruta completa al lanzador):
+
+| Comando | Para qué sirve |
+|---|---|
+| `./cuy` | Abrir la conversación interactiva |
+| `./cuy inicio` | Consultar la portada y el estado local |
+| `./cuy doctor` | Diagnosticar la instalación sin llamar al modelo |
+| `./cuy doctor --verificar` | Añadir una prueba real de conexión, con consumo |
+| `./cuy gasto` | Consultar el gasto estimado registrado localmente |
+| `./cuy costos` | Revisar las tarifas configuradas |
+| `./cuy demo` | Ver un resultado simulado sin llamar al modelo |
+
+En Windows usa `.\cuy.cmd` en lugar de `./cuy`. También puedes ver la [captura de la demo](docs/demo.png) o abrir [la demo HTML](docs/demo.html) localmente.
+
+## Gasto y datos del proyecto
+
+El límite local predeterminado es **USD 10 al mes**. Puedes cambiarlo para la terminal actual:
+
+```bash
+# macOS y Linux
+CUY_LIMITE_USD=3 ./cuy
+```
+
+```powershell
+# Windows · PowerShell
+$env:CUY_LIMITE_USD="3"
+.\cuy.cmd
+```
+
+El gasto es una estimación basada en los tokens y las tarifas configuradas. El límite se comprueba entre llamadas: una solicitud en curso puede superarlo y las consultas del instalador no se incluyen. **No sustituye un límite de facturación en Databricks.** Con el tope activo, un modelo sin tarifas conocidas se bloquea. Más información en [costos y contexto](docs/COSTOS-Y-CONTEXTO.md).
+
+Los mensajes y el código que el agente utiliza como contexto se envían al proveedor configurado en Databricks. Cuy incorpora filtros para algunos secretos y un registro local de actividad, pero no detecta todos los datos sensibles ni filtra los secretos que pegues directamente en un mensaje. Los permisos locales tampoco son un sandbox. Consulta el [alcance de la protección y auditoría](docs/REFERENCIA.md#secretos-y-auditoría) si vas a trabajar con información sensible.
+
+## Si algo falla
+
+**Empieza por el diagnóstico:** ejecuta `./cuy doctor` (Windows: `.\cuy.cmd doctor`). Añade `--verificar` si necesitas comprobar una llamada real al modelo.
+
+### Databricks devuelve 401
+
+Comprueba que la URL corresponde al workspace correcto y que el token sigue vigente. Desde la carpeta de Cuy, puedes renovarlo sin escribirlo en el historial:
+
+```bash
+python3 instalar.py --renovar-token --host https://TU-WORKSPACE
+```
+
+En Windows usa `python`. Si ya tienes `DATABRICKS_TOKEN` exportado en la terminal, tiene prioridad sobre `.env`: actualízalo o elimínalo con `unset DATABRICKS_TOKEN` (macOS/Linux) o `Remove-Item Env:DATABRICKS_TOKEN` (PowerShell) antes de usar la credencial del archivo.
+
+### El ejecutable no arranca o quieres actualizarlo
+
+Para actualizar, primero actualiza tu copia del repositorio. Después, desde la carpeta de Cuy, reinstala el motor correspondiente a tu sistema:
+
+```bash
+python3 instalar.py --reparar-motor
+```
+
+En Windows usa `python` y abre Cuy con `.\cuy.cmd`. La reparación descarga el ejecutable sin consultar Databricks ni modificar el token o los modelos configurados. Si `python --version` también falla, corrige primero la instalación de Python.
+
+En VS Code Web de Azure Machine Learning, ejecuta la instalación desde la terminal de la instancia Linux. Se descarga el binario de esa instancia, no el de tu computadora.
+
+## Más documentación
+
+El [índice de documentación](docs/README.md) distingue las guías vigentes de las especificaciones y el historial.
+
+- [Configuración](docs/CONFIGURACION.md): variables, precedencia y ubicación de datos.
+- [Desarrollo y distribución](docs/DESARROLLO.md): pruebas, releases y traslado al repositorio del equipo.
+- [Referencia técnica](docs/REFERENCIA.md): tareas, instalación avanzada, permisos, presupuesto, auditoría y pruebas.
+- [Costos y contexto](docs/COSTOS-Y-CONTEXTO.md): tarifas, comparación con consumo real y manejo del historial.
+- [Evaluación del agente](evaluacion/README.md): cómo medir correcciones y costos.
+- [Plan de evolución](docs/EVOLUCION.md): próximos pasos y propuestas; incluye decisiones históricas.
+- [Proceso de especificaciones](docs/SDD.md) y [principios del proyecto](docs/CONSTITUCION.md): proceso para contribuir.

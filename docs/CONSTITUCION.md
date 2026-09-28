@@ -1,8 +1,8 @@
 ---
 tipo: constitucion
 proyecto: cuy-cli
-version: 1.0.0
-fecha: 2026-09-25
+version: 1.0.1
+fecha: 2026-09-28
 ---
 
 # Constitución de cuy-cli
@@ -96,10 +96,13 @@ tener nada, porque se deja de mirar.
 > El tope de gasto y la redacción de secretos son barreras. El control duro vive en el
 > Gateway de Databricks.
 
-## P8 — El secreto nunca toca el disco ni el historial
+## P8 — Credenciales fuera del repositorio, el historial y los registros
 
 No se commitean credenciales, ni siquiera revocadas, ni siquiera como fixture de test. Los
-registros guardan qué se hizo, nunca el contenido.
+registros guardan qué se hizo, nunca el contenido. Esto no prohíbe el almacenamiento
+local de la credencial necesario para operar: el instalador guarda el token solicitado
+en `.env`, excluido de Git, o reutiliza uno del entorno. Ese archivo contiene un secreto
+y debe protegerse con los permisos del equipo; no es un almacén cifrado.
 
 **Cómo se aplica.** Los fixtures con forma de credencial se **construyen** en tiempo de
 ejecución, no se pegan literales. La auditoría registra rutas y tipos, nunca valores.
@@ -125,13 +128,21 @@ Un docstring dice qué hace una función; el conocimiento caro es por qué está
 Perderlo hace que el error se repita.
 
 **Cómo se aplica.** Docstrings en formato Sphinx (reST) en módulos, clases y funciones
-públicas. Las decisiones no obvias quedan como ADR en el vault y los bugs con causa raíz en
-`Bugs-and-Learnings/`.
+públicas. Las decisiones no obvias y los bugs con causa raíz se documentan en el RFC o
+plan correspondiente dentro de este repositorio. Un registro externo del equipo puede
+complementarlos, pero no es un requisito para entender o mantener el proyecto.
 
 > Las tarifas de Databricks no coinciden con la lista de Anthropic. Costó dos correcciones
 > descubrirlo y una refactorización casi lo borra del repo.
 
 ---
+
+## Aclaraciones de la versión 1.0.1
+
+El 2026-09-28 se precisó el alcance de P8 para distinguir credenciales locales de
+secretos publicados o registrados, y se hizo P10 independiente de un archivo personal
+externo. Se conserva la finalidad de ambos principios. Los planes que citan 1.0.0
+conservan la versión contra la que se revisaron.
 
 ## Cómo se modifica esta constitución
 

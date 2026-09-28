@@ -18,17 +18,16 @@ Los permisos de RFC-001 controlan **qué herramientas** corre el agente. No cont
 Hoy, si alguien abre un repo que contiene un `.env`, un `terraform.tfvars`, un
 `~/.aws/credentials` o un notebook con una credencial pegada, y el agente lo lee para
 responder una pregunta, ese contenido viaja al endpoint de inferencia. Que el endpoint sea
-el de la empresa lo hace menos grave —no sale del perímetro— pero no inofensivo: queda en
-los logs de inferencia de Databricks, que tienen otra audiencia y otra retención que el
-repositorio de donde salió.
+el configurado por la empresa no demuestra por sí solo el perímetro de procesamiento
+ni la retención. El contenido puede quedar registrado según la configuración del
+servicio; ambos aspectos deben comprobarse en el entorno del equipo.
 
 El agente además no necesita hacer nada raro para provocarlo. `grep -r password .` es una
 instrucción razonable, y `cat .env` es lo que cualquiera haría para depurar una config.
 
-**Es el único riesgo del proyecto con consecuencia irreversible.** Un token filtrado no se
-desfiltra: se rota, se investiga, y la herramienta que lo filtró se prohíbe. El resto de
-los problemas abiertos —el tope de gasto local, la auditoría que no sale de la máquina— se
-arreglan el día que molestan.
+**Una filtración puede tener consecuencias irreversibles.** Un token filtrado no se
+desfiltra: se rota, se investiga, y la herramienta que lo filtró se prohíbe. El gasto y la auditoría también requieren controles propios;
+esta especificación se limita a la exposición accidental de secretos.
 
 ## 2. Qué no resuelve esto
 
@@ -42,7 +41,7 @@ Conviene decirlo antes que lo que sí, porque define el alcance.
 - **No detecta un secreto que no parezca uno.** Una contraseña que sea `verano2026` es
   indistinguible de texto.
 
-Lo que sí resuelve es **el accidente**, que es como ocurren casi todas las filtraciones.
+Reduce algunas exposiciones accidentales; no garantiza prevenir toda filtración.
 
 ## 3. Dónde intervenir
 
@@ -109,10 +108,11 @@ Reemplazar por `[REDACTADO:tipo]`, no borrar la línea ni truncar el archivo. El
 tiene que poder seguir razonando sobre la estructura del archivo; lo único que no puede
 ver es el valor.
 
-**Efecto secundario que resulta deseable:** si el agente intenta reescribir esa línea, su
-`oldString` no va a coincidir con el archivo real y la edición falla. Es decir que la
-redacción **no puede pisar un secreto con `[REDACTADO]` en disco**. Falla cerrado sin que
-haya que programarlo.
+**Aclaración de alcance (2026-09-28):** un reemplazo que use como `oldString` una
+línea redactada puede fallar porque no coincide con el archivo real. Eso no protege
+frente a una reescritura completa: el agente podría guardar un marcador en lugar del
+valor original. La redacción filtra parte del contexto enviado al modelo; no garantiza
+la conservación de secretos en las ediciones. Revisar el diff sigue siendo necesario.
 
 ### D5 — Cada redacción queda en la auditoría
 
@@ -142,7 +142,7 @@ ninguno es necesario para cerrar el riesgo principal.
 |---|---|
 | RF-001 | El sistema **debe** rechazar la lectura de rutas cuyo contenido es la credencial, antes de leerlas. |
 | RF-002 | El rechazo **debe** aplicar también cuando la ruta aparece dentro de un comando de shell. |
-| RF-003 | El sistema **debe** permitir las plantillas versionables (`.env.example` y equivalentes), que no llevan valores. |
+| RF-003 | El sistema **debe** permitir las plantillas versionables (`.env.example` y equivalentes), destinadas a ejemplos; el nombre no garantiza que carezcan de secretos. |
 | RF-004 | El sistema **debe** reemplazar por un marcador los valores con forma reconocible de credencial en la salida de cualquier herramienta. |
 | RF-005 | La redacción **debe** conservar la estructura del texto: misma cantidad de líneas y clave visible. |
 | RF-006 | Una asignación **solo** se redacta con el valor entrecomillado, para no tocar referencias a variables en código normal. |
