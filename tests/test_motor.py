@@ -161,7 +161,7 @@ class Motor(unittest.TestCase):
             tareas.git(repo, *args)
         informe = tareas.correr_tarea("corregir", "Crear resultado.txt con prueba correcta.", repo,
             Path(os.environ["CUY_TEST_BINARIO"]), self.entorno(), self.root / "tareas",
-            [[sys.executable, "-c", "from pathlib import Path; assert Path('resultado.txt').read_text().strip() == 'prueba correcta'"]], 45)
+            [[sys.executable, "-c", "from pathlib import Path; assert Path('resultado.txt').read_text().strip() == 'prueba correcta'"]], TIMEOUT_MOTOR_S)
         self.assertEqual(informe["estado"], "verificada", informe)
         self.assertFalse((repo / "resultado.txt").exists())
         self.assertEqual(informe["archivos"], ["resultado.txt"])
