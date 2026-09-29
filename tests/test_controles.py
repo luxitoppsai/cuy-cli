@@ -77,7 +77,11 @@ class Controles(unittest.TestCase):
 
 
     def test_instalacion_seleccionada_no_es_sombreada_por_descarga_vieja(self):
-        with tempfile.TemporaryDirectory() as temp, patch.object(cuy, "RAIZ", Path(temp)):
+        # Prueba precedencia de selección, no formato de ejecutable: eso ya lo cubre
+        # test_ejecutables.py. En Windows real, un archivo vacío no pasa validar_windows()
+        # y el ValueError de formato tapaba el resultado que este test quiere comprobar.
+        with tempfile.TemporaryDirectory() as temp, patch.object(cuy, "RAIZ", Path(temp)), \
+                patch.object(cuy, "validar_windows", lambda ruta: ruta):
             root = Path(temp)
             (root / "bin").mkdir()
             (root / "bin" / "cuy").touch()
