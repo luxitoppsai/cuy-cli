@@ -16,6 +16,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import cuy
 import generar_config as gc
 
+# En CI de Windows, el binario recién descargado por npm arranca mucho más lento la
+# primera vez —se observó un timeout total sin ninguna salida a los 45s en las cuatro
+# pruebas que invocan el motor real, algo consistente con el escaneo de Defender sobre
+# un ejecutable nuevo de ~150-200 MB—. Configurable porque el valor es una hipótesis
+# sobre el entorno, no una constante del contrato.
+TIMEOUT_MOTOR_S = int(os.environ.get("CUY_TEST_TIMEOUT_S", "180"))
+
 
 @unittest.skipUnless(os.environ.get("CUY_TEST_BINARIO"), "Requiere CUY_TEST_BINARIO para probar el motor real")
 class Motor(unittest.TestCase):
@@ -95,7 +102,7 @@ class Motor(unittest.TestCase):
     def ejecutar(self, agente="build", agotado=False):
         """Corre el binario real contra el proveedor sintético y devuelve su salida."""
         env = self.entorno(agotado)
-        return subprocess.run([os.environ["CUY_TEST_BINARIO"], "run", "--format", "json", "--agent", agente, "Escribe resultado.txt con prueba correcta."], cwd=self.root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=45)
+        return subprocess.run([os.environ["CUY_TEST_BINARIO"], "run", "--format", "json", "--agent", agente, "Escribe resultado.txt con prueba correcta."], cwd=self.root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT_MOTOR_S)
 
     @unittest.skipIf("node_modules" in Path(os.environ.get("CUY_TEST_BINARIO", "")).parts,
                      "La carga de AGENTS es propia del motor Cuy, no del paquete upstream de CI.")
@@ -111,7 +118,7 @@ class Motor(unittest.TestCase):
         env["OPENCODE_CONFIG_CONTENT"] = json.dumps(config)
         result = subprocess.run(
             [os.environ["CUY_TEST_BINARIO"], "run", "--format", "json", "--agent", "plan", "Explica el proyecto."],
-            cwd=self.root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=45,
+            cwd=self.root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT_MOTOR_S,
         )
         self.assertEqual(result.returncode, 0, (result.stdout + result.stderr)[-3000:])
         self.assertTrue(self.requests)
