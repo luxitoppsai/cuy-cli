@@ -27,12 +27,3 @@ export function recovery(message: string): { title: string; message: string } | 
   if (/timeout|timed out|ECONNREFUSED|ENOTFOUND|fetch failed/i.test(message))
     return { title: "No se pudo completar la conexión", message: "Revisá tu red o VPN y que el workspace esté disponible. Volvé a intentar cuando se restablezca la conexión." }
 }
-
-export const starters = [
-  { value: "entender", title: "Entender el proyecto", description: "Arquitectura y puntos de entrada · solo lectura", agent: "plan",
-    prompt: "Explicame qué hace este proyecto, su arquitectura y por dónde conviene empezar. Revisá los archivos y citá ejemplos concretos. No modifiques nada." },
-  { value: "revisar", title: "Revisar un problema", description: "Hallazgos priorizados y próximos pasos · solo lectura", agent: "plan",
-    prompt: "Revisá el proyecto buscando errores y riesgos concretos. Priorizá los hallazgos, citá archivo y línea y proponé cómo verificarlos. No modifiques nada." },
-  { value: "cambiar", title: "Hacer un cambio", description: "Edición con los permisos configurados · definí tu objetivo", agent: "build",
-    prompt: "Quiero hacer este cambio: [describí el objetivo]. Primero revisá el código, explicá qué vas a modificar y después implementá y verificá el resultado." },
-]

@@ -75,3 +75,25 @@ explicada en [correcciones](CORRECCIONES.md).
 
 El motor puede mantener sus propios datos de sesión: esta lista describe los archivos de Cuy,
 no un inventario completo de todos los archivos creados por OpenCode.
+
+## Buenas prácticas e instrucciones del proyecto
+
+Cuy añade `instrucciones/AGENTS.md`, desde su propia instalación, al contexto de cada
+conversación. Contiene las prácticas generales de diseño, revisión y verificación.
+Se carga por ruta absoluta calculada al arrancar, así que funciona al abrir otro proyecto
+sin copiar archivos ni depender de la configuración personal de Claude o Codex.
+Cuy desactiva la carga de `CLAUDE.md`; usa `AGENTS.md` para las reglas del proyecto.
+
+El motor de Cuy también lee `AGENTS.md` del proyecto de trabajo aunque su configuración
+local de OpenCode esté desactivada. Esto no habilita `opencode.json` ni plugins del
+proyecto. Las instrucciones de subcarpetas se incorporan cuando el motor lee archivos
+allí. El Markdown orienta al modelo: no modifica permisos ni garantiza cumplimiento.
+
+En este repositorio, `AGENTS.md` añade las reglas para desarrollar Cuy. En otro proyecto,
+usa su propio `AGENTS.md` para comandos de prueba, arquitectura y convenciones del equipo.
+Las buenas prácticas generales indican que se respeten esas convenciones específicas.
+
+La carga de `AGENTS.md` del proyecto con configuración local desactivada está disponible
+desde el motor 0.4.3. Después de actualizar el repositorio, ejecuta
+`python3 instalar.py --reparar-motor` (Windows: `python`) para instalar esa versión.
+Los binarios anteriores pueden seguir omitiendo esas instrucciones.

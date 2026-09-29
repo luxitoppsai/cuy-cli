@@ -42,7 +42,9 @@ python -m unittest discover -s tests -p test_motor.py
 También puedes apuntar al motor instalado por npm; la CI usa
 `node_modules/opencode-ai/bin/opencode.exe`. El motor de npm y el binario publicado
 pueden diferir: para aprobar una release, comprueba sus artefactos concretos.
-Estas pruebas usan un proveedor sintético en localhost, no Databricks.
+Estas pruebas usan un proveedor sintético en localhost, no Databricks. La comprobación
+de instrucciones propia de Cuy se omite al apuntar al paquete upstream en `node_modules`;
+se ejecuta con el binario de Cuy compilado o instalado.
 
 Comprobaciones específicas de documentación y evaluación:
 

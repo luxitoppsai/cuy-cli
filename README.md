@@ -71,9 +71,8 @@ cd C:\ruta\a\mi-proyecto
 & "C:\ruta\a\cuy-cli\cuy.cmd"
 ```
 
-Cuy trabaja sobre la carpeta actual. Dentro de la interfaz, escribe `/empezar` para elegir **Entender el proyecto**, **Revisar un problema** o **Hacer un cambio**. La elección prepara un mensaje que puedes editar antes de enviarlo.
-
-También puedes escribir directamente, por ejemplo:
+Cuy trabaja sobre la carpeta actual. Escribe directamente lo que necesitas: entender código,
+revisar un problema o implementar un cambio. Por ejemplo:
 
 ```text
 Explícame cómo se procesa un pedido y qué archivos intervienen. No modifiques nada.
@@ -85,7 +84,8 @@ Revisa src/stock.py y busca errores en la validación de cantidades. Cita las l�
 
 Usa **Planificar** para lectura y análisis, y **Editar** para implementar cambios con los permisos configurados. En la conversación interactiva, las ediciones se realizan sobre tu proyecto: revisa el diff antes de guardar un commit. Puedes elegir otro modelo disponible con `/models`.
 
-Si tu proyecto tiene instrucciones de trabajo, colócalas en `AGENTS.md`. Cuy usa su propia configuración; no carga los archivos `opencode.json` ni los plugins locales del proyecto.
+Cuy carga sus [buenas prácticas](instrucciones/AGENTS.md) automáticamente. Para añadir
+convenciones específicas, colócalas en `AGENTS.md` en la raíz de tu proyecto. Cuy usa su propia configuración; no carga los archivos `opencode.json` ni los plugins locales del proyecto.
 
 ## Tareas con un resultado para revisar
 

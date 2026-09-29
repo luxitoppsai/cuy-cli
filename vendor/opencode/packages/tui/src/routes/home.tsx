@@ -1,9 +1,5 @@
 import { CuyOverview } from "../component/cuy-overview"
-import { starters } from "../util/cuy"
 import { useTheme } from "../context/theme"
-import { useBindings } from "../keymap"
-import { useDialog } from "../ui/dialog"
-import { DialogSelect } from "../ui/dialog-select"
 import { Prompt, type PromptRef } from "../component/prompt"
 import { Show, createEffect, createMemo, createSignal, onMount } from "solid-js"
 import { Logo } from "../component/logo"
@@ -27,7 +23,6 @@ const placeholder = {
 
 export function Home() {
   const { theme } = useTheme()
-  const dialog = useDialog()
   const pluginRuntime = usePluginRuntime()
   const sync = useSync()
   const route = useRouteData("home")
@@ -43,19 +38,6 @@ export function Home() {
     if (configured === "auto") return Math.max(75, Math.floor(dimensions().width * 0.7))
     return configured ?? 75
   })
-  const choose = () => dialog.replace(() => (
-    <DialogSelect title="¿Qué querés hacer?" options={starters} onSelect={(option) => {
-      const task = starters.find((item) => item.value === option.value)
-      const current = ref()?.current
-      if (!task) return
-      if (local.agent.list().some((item) => item.name === task.agent)) local.agent.set(task.agent)
-      ref()?.set({ input: task.prompt + (current?.input ? "\n\n" + current.input : ""), parts: current?.parts ?? [] })
-      dialog.clear()
-      ref()?.focus()
-    }} />
-  ))
-  useBindings(() => ({ commands: [{ name: "cuy.start", namespace: "palette", title: "Elegir una tarea para empezar",
-    slashName: "empezar", category: "cuycli", run: choose }] }))
   let sent = false
 
   onMount(() => {
@@ -111,10 +93,8 @@ export function Home() {
           </pluginRuntime.Slot>
         </box>
         <box width="100%" maxWidth={promptMaxWidth()} paddingTop={1} flexShrink={0}>
-          <text fg={theme.primary} wrapMode="word" onMouseDown={choose}>Entender · Revisar · Hacer un cambio → /empezar</text>
           <Show when={dimensions().height >= 24}>
             <text fg={theme.textMuted} wrapMode="word">Escribí tu objetivo. @ agrega archivos · /help muestra la ayuda</text>
-            <text fg={theme.textMuted}>Las plantillas preparan el mensaje; vos decidís cuándo enviarlo.</text>
           </Show>
         </box>
 

@@ -119,16 +119,15 @@ const layer: Layer.Layer<
         }
       }
 
-      // The first project-level match wins so we don't stack AGENTS.md/CLAUDE.md from every ancestor.
-      if (!Flag.OPENCODE_DISABLE_PROJECT_CONFIG) {
-        for (const file of instructionFiles) {
-          const matches = yield* fs
-            .findUp(file, ctx.directory, ctx.worktree)
-            .pipe(Effect.catch(() => Effect.succeed([])))
-          if (matches.length > 0) {
-            matches.forEach((item) => paths.add(path.resolve(item)))
-            break
-          }
+      // Cuy disables project config/plugins, but AGENTS.md remains project guidance.
+      // Read Markdown only here; do not re-enable local configuration discovery.
+      for (const file of Flag.OPENCODE_DISABLE_PROJECT_CONFIG ? ["AGENTS.md"] : instructionFiles) {
+        const matches = yield* fs
+          .findUp(file, ctx.directory, ctx.worktree)
+          .pipe(Effect.catch(() => Effect.succeed([])))
+        if (matches.length > 0) {
+          matches.forEach((item) => paths.add(path.resolve(item)))
+          break
         }
       }
 

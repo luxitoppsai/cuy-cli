@@ -22,27 +22,21 @@ test("home explains configuration and next action without claiming a live connec
     for (let i = 0; i < 100; i++) {
       await new Promise((resolve) => setTimeout(resolve, 25))
       await setup.renderOnce()
-      if (setup.captureCharFrame().includes("/empezar")) break
+      if (setup.captureCharFrame().includes("Escribí tu objetivo.")) break
     }
     const frame = setup.captureCharFrame()
     if (process.env.CUY_UI_CAPTURE) await Bun.write(process.env.CUY_UI_CAPTURE, frame)
     expect(frame).toContain("Databricks Model Serving")
-    expect(frame).toContain("/empezar")
+    expect(frame).not.toContain("/empezar")
+    expect(frame).toContain("Escribí tu objetivo.")
     expect(frame).toContain("Sin workspace configurado")
     expect(frame).not.toContain("Conectado")
-    const requests = calls.session.length
-    const row = frame.split("\n").findIndex((line) => line.includes("/empezar"))
-    await setup.mockMouse.click(18, row)
-    await setup.waitForFrame((text) => text.includes("¿Qué querés hacer?"))
-    expect(setup.captureCharFrame()).toContain("¿Qué querés hacer?")
-    expect(setup.captureCharFrame()).toContain("Entender el proyecto")
-    expect(calls.session.length).toBe(requests)
-    setup.mockInput.pressEnter()
-    await setup.renderOnce()
+    expect(frame).not.toContain("Las plantillas")
     setup.resize(64, 24)
     await setup.renderOnce()
     const compact = setup.captureCharFrame()
-    expect(compact).toContain("/empezar")
+    expect(compact).toContain("Escribí tu objetivo.")
+    expect(compact).not.toContain("/empezar")
     expect(compact).not.toContain("Límite mensual")
     if (process.env.CUY_UI_CAPTURE) await Bun.write(process.env.CUY_UI_CAPTURE + ".compact", compact)
   } finally {

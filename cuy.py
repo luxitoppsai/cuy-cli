@@ -40,6 +40,7 @@ BLINDAJE = {
     "OPENCODE_DISABLE_LSP_DOWNLOAD": "1",
     "OPENCODE_DISABLE_EXTERNAL_SKILLS": "1",
     "OPENCODE_DISABLE_PROJECT_CONFIG": "1",
+    "OPENCODE_DISABLE_CLAUDE_CODE_PROMPT": "1",  # prácticas portables de Cuy, no el perfil personal de Claude
 }
 
 
@@ -114,6 +115,9 @@ def entorno_agente() -> dict:
     config["enabled_providers"] = list(config["provider"])
     config["plugin"] = [(RAIZ / "plugin" / f"{nombre}.js").as_uri()
                         for nombre in ("presupuesto", "auditoria", "secretos")]
+    # Ruta de la instalación: las buenas prácticas viajan con Cuy, no con el cwd.
+    instrucciones = str((RAIZ / "instrucciones" / "AGENTS.md").resolve())
+    config["instructions"] = list(dict.fromkeys([instrucciones, *config.get("instructions", [])]))
     entorno = {**os.environ, **BLINDAJE}
     entorno["PWD"] = str(pathlib.Path.cwd())
     entorno.pop("OPENCODE_CONFIG_DIR", None)

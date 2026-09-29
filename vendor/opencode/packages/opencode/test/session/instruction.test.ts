@@ -210,6 +210,34 @@ describe("Instruction.resolve", () => {
 })
 
 describe("Instruction.system", () => {
+  it.live("loads project AGENTS with project config disabled and keeps installed instructions", () =>
+    Effect.gen(function* () {
+      const globalTmp = yield* tmpWithFiles({ "cuy.md": "# Shared Cuy Practices" })
+      const projectTmp = yield* tmpWithFiles({ "AGENTS.md": "# Project Practices", "CLAUDE.md": "# Legacy Claude" })
+      const previous = process.env.OPENCODE_DISABLE_PROJECT_CONFIG
+      process.env.OPENCODE_DISABLE_PROJECT_CONFIG = "true"
+      yield* Effect.gen(function* () {
+        const svc = yield* Instruction.Service
+        const rules = yield* svc.system()
+        expect(rules).toHaveLength(2)
+        expect(rules.join("\n")).toContain("# Shared Cuy Practices")
+        expect(rules.join("\n")).toContain("# Project Practices")
+        expect(rules.join("\n")).not.toContain("# Legacy Claude")
+      }).pipe(
+        provideInstance(projectTmp),
+        Effect.provide(AppNodeBuilder.build(Instruction.node, [
+          [Config.node, TestConfig.layer({ get: () => Effect.succeed({ instructions: [path.join(globalTmp, "cuy.md")] }) })],
+          [Global.node, Global.layerWith({ home: globalTmp, config: globalTmp })],
+          [RuntimeFlags.node, RuntimeFlags.layer({})],
+        ])),
+        Effect.ensuring(Effect.sync(() => {
+          if (previous === undefined) delete process.env.OPENCODE_DISABLE_PROJECT_CONFIG
+          else process.env.OPENCODE_DISABLE_PROJECT_CONFIG = previous
+        })),
+      )
+    }),
+  )
+
   it.live("loads both project and global AGENTS.md when both exist", () =>
     Effect.gen(function* () {
       const globalTmp = yield* tmpWithFiles({ "AGENTS.md": "# Global Instructions" })

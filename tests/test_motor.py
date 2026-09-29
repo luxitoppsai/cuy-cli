@@ -97,6 +97,32 @@ class Motor(unittest.TestCase):
         env = self.entorno(agotado)
         return subprocess.run([os.environ["CUY_TEST_BINARIO"], "run", "--format", "json", "--agent", agente, "Escribe resultado.txt con prueba correcta."], cwd=self.root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=45)
 
+    @unittest.skipIf("node_modules" in Path(os.environ.get("CUY_TEST_BINARIO", "")).parts,
+                     "La carga de AGENTS es propia del motor Cuy, no del paquete upstream de CI.")
+    def test_instrucciones_llegan_al_modelo_sin_cargar_config_del_proyecto(self):
+        """El prompt real combina prácticas de Cuy y AGENTS sin habilitar config local."""
+        (self.root / "AGENTS.md").write_text("Regla del proyecto: CONTRATO_CUY_INSTRUCCIONES.")
+        (self.root / "opencode.json").write_text("configuracion local invalida: no debe cargarse")
+        (self.root / ".claude").mkdir()
+        (self.root / ".claude" / "CLAUDE.md").write_text("REGLA_PERSONAL_NO_PORTABLE")
+        env = self.entorno()
+        config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
+        config["instructions"] = [str(cuy.RAIZ / "instrucciones" / "AGENTS.md")]
+        env["OPENCODE_CONFIG_CONTENT"] = json.dumps(config)
+        result = subprocess.run(
+            [os.environ["CUY_TEST_BINARIO"], "run", "--format", "json", "--agent", "plan", "Explica el proyecto."],
+            cwd=self.root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=45,
+        )
+        self.assertEqual(result.returncode, 0, (result.stdout + result.stderr)[-3000:])
+        self.assertTrue(self.requests)
+        agente = [request for request in self.requests if request.get("tools")]
+        self.assertTrue(agente)
+        contexto = json.dumps(agente[0]["messages"], ensure_ascii=False)
+        self.assertIn("CONTRATO_CUY_INSTRUCCIONES", contexto)
+        self.assertIn("Buenas prácticas de trabajo", contexto)
+        self.assertIn("YAGNI", contexto)
+        self.assertNotIn("REGLA_PERSONAL_NO_PORTABLE", contexto)
+
     def test_presupuesto_impide_request_real(self):
         result = self.ejecutar(agotado=True)
         self.assertEqual(self.requests, [], (result.stdout + result.stderr)[-3000:])

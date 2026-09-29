@@ -14,6 +14,9 @@ Para instalar y empezar, consulta el [README principal](../README.md).
 | Medir correcciones con casos de prueba | [Evaluación del agente](../evaluacion/README.md) |
 | Ver resultados simulados | [Demo HTML](demo.html) · [captura](demo.png) |
 
+Las [buenas prácticas compartidas](../instrucciones/AGENTS.md) se aplican a la conversación
+libre; el [AGENTS.md del repositorio](../AGENTS.md) añade las reglas para desarrollar Cuy.
+
 ## Especificaciones e historial
 
 - [Proceso de especificaciones](SDD.md) y [constitución](CONSTITUCION.md): reglas para contribuir.

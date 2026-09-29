@@ -68,6 +68,13 @@ class Controles(unittest.TestCase):
             self.assertEqual(len(efectiva["plugin"]), 3)
             self.assertTrue(all(p.startswith(Path(temp).as_uri()) for p in efectiva["plugin"]))
             self.assertEqual(env["OPENCODE_DISABLE_PROJECT_CONFIG"], "1")
+            self.assertEqual(env["OPENCODE_DISABLE_CLAUDE_CODE_PROMPT"], "1")
+            self.assertEqual(efectiva["instructions"], [str((Path(temp) / "instrucciones" / "AGENTS.md").resolve())])
+            config["instructions"] = ["manual-equipo.md", efectiva["instructions"][0]]
+            (Path(temp) / "opencode.json").write_text(json.dumps(config))
+            actualizada = json.loads(cuy.entorno_agente()["OPENCODE_CONFIG_CONTENT"])
+            self.assertEqual(actualizada["instructions"], [efectiva["instructions"][0], "manual-equipo.md"])
+
 
     def test_instalacion_seleccionada_no_es_sombreada_por_descarga_vieja(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(cuy, "RAIZ", Path(temp)):
