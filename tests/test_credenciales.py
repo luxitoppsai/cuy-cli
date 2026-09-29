@@ -8,6 +8,7 @@ from unittest.mock import patch
 import configuracion as cfg
 import generar_config as gc
 import instalar
+from entorno import entorno_limpio
 
 
 class CredencialesTests(unittest.TestCase):
@@ -22,14 +23,14 @@ class CredencialesTests(unittest.TestCase):
                 'DATABRICKS_TOKEN': 'token-falso', 'OTRO': '$(comando)', 'HOST': 'valor'})
 
     def test_entorno_tiene_prioridad(self):
-        with tempfile.TemporaryDirectory() as directorio, patch.dict(os.environ, {'DATABRICKS_TOKEN': 'entorno'}, clear=True):
+        with tempfile.TemporaryDirectory() as directorio, entorno_limpio({'DATABRICKS_TOKEN': 'entorno'}):
             ruta = Path(directorio) / '.env'
             ruta.write_text('DATABRICKS_TOKEN="archivo"\n')
             cfg.cargar_archivo_env(ruta)
             self.assertEqual(os.environ['DATABRICKS_TOKEN'], 'entorno')
 
     def test_renovar_conserva_opciones_y_reemplaza_export(self):
-        with tempfile.TemporaryDirectory() as directorio, patch.dict(os.environ, {}, clear=True):
+        with tempfile.TemporaryDirectory() as directorio, entorno_limpio():
             ruta = Path(directorio) / '.env'
             ruta.write_text('# ajustes\nCUY_LIMITE_USD=5\nexport DATABRICKS_TOKEN="viejo"\n')
             with patch.object(instalar, 'ENV', ruta), patch.object(instalar.getpass, 'getpass', return_value='nuevo'):
@@ -44,7 +45,7 @@ class CredencialesTests(unittest.TestCase):
             pedir.assert_not_called()
 
     def test_host_dotenv(self):
-        with tempfile.TemporaryDirectory() as directorio, patch.dict(os.environ, {}, clear=True):
+        with tempfile.TemporaryDirectory() as directorio, entorno_limpio():
             ruta = Path(directorio) / '.env'
             ruta.write_text('DATABRICKS_HOST="https://example.databricks.com/"\n')
             with patch.object(instalar, 'ENV', ruta):
