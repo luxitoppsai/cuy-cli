@@ -1,0 +1,11 @@
+{
+  "version": "0.20.1",
+  "sha256": {
+    "codegraph-server-darwin-arm64": "460d830e93467efb9270bfe6ac01f34e32d3369041e3a93699a9887053d18cc3",
+    "codegraph-server-darwin-x64": "5aa863ea529afcf6664cf40fcd7079d4121e8348acc1c9e0ebbc0c4675246ddd",
+    "codegraph-server-linux-arm64": "e549f2378f7911680b88ff4a86a66e783c7911d66b1d6ec09743d7afff53c1cf",
+    "codegraph-server-linux-x64": "32b26422fa5ffe0a130955b7f7df771f722b2d427d67f53f104d9907bdfb24a6",
+    "codegraph-server-win32-x64.exe": "aa1b6108217c119af6ac444b8652a0eadcfe2c343bff78ead2edd15b6b7b15b1",
+    "onnxruntime.dll": "52f8ebe8f08f369a44fed6d1cb680c7c89169795e1c2949ee25b88b538ef0948"
+  }
+}

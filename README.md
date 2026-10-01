@@ -87,6 +87,18 @@ Usa **Planificar** para lectura y análisis, y **Editar** para implementar cambi
 Cuy carga sus [buenas prácticas](instrucciones/AGENTS.md) automáticamente. Para añadir
 convenciones específicas, colócalas en `AGENTS.md` en la raíz de tu proyecto. Cuy usa su propia configuración; no carga los archivos `opencode.json` ni los plugins locales del proyecto.
 
+Al abrir una conversación, Cuy prepara automáticamente un **índice local con CodeGraph**.
+La primera vez descarga su ejecutable verificado y crea el índice; después comprueba
+los cambios y reutiliza los archivos intactos. El agente puede consultar símbolos,
+dependencias y llamadas mientras conversas. No necesitas ejecutar un comando especial.
+Esto le permite orientarse entre archivos y explorar qué partes podrían verse afectadas
+antes de proponer un cambio.
+
+El estado queda en `.cuy/codegraph/` del proyecto y Cuy añade sus exclusiones a
+`.gitignore`. Si el índice falla, avisa y continúa con lectura y búsqueda normales.
+La primera preparación puede tardar más. Consulta [el índice del repositorio](docs/INDICE-DEL-REPOSITORIO.md)
+para conocer qué incluye y sus límites.
+
 ## Tareas con un resultado para revisar
 
 Los comandos `tarea` requieren un repositorio Git con al menos un commit. Estos ejemplos parten de la carpeta donde instalaste Cuy; `--proyecto` indica el repositorio de trabajo. En Windows, sustituye `./cuy` por `.\cuy.cmd`.

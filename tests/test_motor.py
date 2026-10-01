@@ -36,6 +36,7 @@ class Motor(unittest.TestCase):
         self.requests = []
         self.schemas = []
         self.structured = False
+        self.codegraph = False
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -52,7 +53,12 @@ class Motor(unittest.TestCase):
                 tools = [t["function"]["name"] for t in body.get("tools", [])]
                 owner.schemas.append(tools)
                 already = any(m.get("role") == "tool" for m in body.get("messages", []))
-                if "write" in tools and not already:
+                if owner.codegraph and "cuy_codegraph_codegraph_symbol_search" in tools and not already:
+                    delta = {"role": "assistant", "tool_calls": [{"index": 0, "id": "call_graph", "type": "function", "function": {
+                        "name": "cuy_codegraph_codegraph_symbol_search", "arguments": json.dumps({"query": "alpha"}),
+                    }}]}
+                    finish = "tool_calls"
+                elif "write" in tools and not already:
                     delta = {"role": "assistant", "tool_calls": [{"index": 0, "id": "call_1", "type": "function", "function": {
                         "name": "write", "arguments": json.dumps({"filePath": "resultado.txt", "content": "prueba correcta\n"}),
                     }}]}
@@ -149,6 +155,29 @@ class Motor(unittest.TestCase):
         self.assertFalse((self.root / "resultado.txt").exists())
         for schema in self.schemas:
             self.assertFalse(set(schema) & {"write", "edit", "apply_patch", "bash", "task"}, schema)
+
+    @unittest.skipUnless(os.environ.get("CUY_TEST_CODEGRAPH"), "Requiere CodeGraph real además del motor")
+    def test_motor_consulta_codegraph_con_permisos_de_lectura(self):
+        """El modelo recibe el esquema y el resultado de una consulta MCP real."""
+        import codegraph
+        from unittest.mock import patch
+        self.codegraph = True
+        fuente = self.root / "modulo.py"
+        fuente.write_text("def alpha(): return 1\n", encoding="utf-8")
+        with patch.object(codegraph, "asegurar_binario", return_value=Path(os.environ["CUY_TEST_CODEGRAPH"]).resolve()):
+            env = codegraph.configurar(self.entorno(), self.root)
+        result = subprocess.run([os.environ["CUY_TEST_BINARIO"], "run", "--format", "json",
+            "--agent", "plan", "Busca alpha en el índice."], cwd=self.root, env=env,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT_MOTOR_S)
+        self.assertEqual(result.returncode, 0, (result.stdout + result.stderr)[-3000:])
+        self.assertTrue(any("cuy_codegraph_codegraph_symbol_search" in tools for tools in self.schemas))
+        mensajes = [m for request in self.requests for m in request.get("messages", []) if m.get("role") == "tool"]
+        contenido = json.dumps(mensajes)
+        self.assertIn("alpha", contenido)
+        self.assertIn("modulo.py", contenido)
+        self.assertNotIn(".cuy/codegraph/source", contenido)
+        for tools in self.schemas:
+            self.assertFalse(set(tools) & {"write", "edit", "apply_patch", "bash", "task"})
 
     def test_flujo_corregir_aisla_y_verifica_antes_despues(self):
         import tareas

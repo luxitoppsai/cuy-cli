@@ -166,7 +166,12 @@ def main() -> int:
         return 1
 
     try:
-        return subprocess.call([str(binario)] + sys.argv[1:], env=entorno_agente())
+        entorno = entorno_agente()
+        from codegraph import configurar, carpeta_conversacion
+        carpeta = carpeta_conversacion(sys.argv[1:])
+        if carpeta is not None:
+            entorno = configurar(entorno, carpeta)
+        return subprocess.call([str(binario)] + sys.argv[1:], env=entorno)
     except (OSError, ValueError, KeyError) as exc:
         print(f"No se pudo iniciar Cuy: {exc}", file=sys.stderr)
         if getattr(exc, "winerror", None) in (193, 216):

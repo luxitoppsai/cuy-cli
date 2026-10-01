@@ -10,6 +10,11 @@ Los ejemplos usan nombres genéricos y funcionan con cualquier remoto del reposi
 - `opencode.json`: modelos, proveedores y tarifas generados por el instalador. No se versiona.
 - `bin/seleccion.json`: ejecutable seleccionado; contiene una ruta local absoluta. Si mueves la instalación, ejecuta `python3 instalar.py --reparar-motor` desde su nueva ubicación.
 - `AGENTS.md` del proyecto de trabajo: instrucciones para el agente. Cuy no carga la configuración `opencode.json` ni los plugins locales de ese proyecto.
+- `codegraph-release.json`: versión y hashes del indexador, versionados junto al código.
+  Su binario verificado se guarda en `bin/codegraph/<version>/` de la instalación.
+- `.cuy/codegraph/` del proyecto de trabajo: copia e índice local, preparados al abrir
+  una conversación. El lanzador añade MCP y permisos de consulta solo a la configuración
+  de esa ejecución. Consulta [el índice del repositorio](INDICE-DEL-REPOSITORIO.md).
 
 El lanzador carga `.env` sin reemplazar variables ya exportadas. El lector acepta comillas y
 el prefijo `export`, pero **no expande** variables ni ejecuta comandos: usa valores y rutas

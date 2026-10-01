@@ -40,3 +40,7 @@ venv/
 
 # Demo HTML generada localmente; docs/demo.html permanece versionado
 /cuy-demo.html
+
+# Índice local de Cuy (generado)
+/.cuy/codegraph/
+/.codegraph-state/

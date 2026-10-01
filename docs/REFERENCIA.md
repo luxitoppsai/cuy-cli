@@ -7,6 +7,10 @@ salvo que se indique otra carpeta. Las rutas de ejemplo son sustituibles; `~` si
 la carpeta personal del usuario en cada sistema. Consulta [configuración](CONFIGURACION.md)
 para cambiar las ubicaciones de datos.
 
+Las conversaciones locales incorporan también un [índice de CodeGraph](INDICE-DEL-REPOSITORIO.md)
+con consultas de lectura. El lanzador comprueba sus fuentes al arrancar y antes de cada
+consulta; las tareas explícitas descritas abajo conservan su ejecución sin ese índice.
+
 ## Entender, corregir y revisar
 
 ```bash

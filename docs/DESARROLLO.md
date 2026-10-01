@@ -46,6 +46,18 @@ Estas pruebas usan un proveedor sintético en localhost, no Databricks. La compr
 de instrucciones propia de Cuy se omite al apuntar al paquete upstream en `node_modules`;
 se ejecuta con el binario de Cuy compilado o instalado.
 
+Para comprobar el indexador real, define también `CUY_TEST_CODEGRAPH` con la ruta absoluta
+de su ejecutable verificado en `bin/codegraph/<version>/`. Ejecuta las pruebas de índice
+y del motor con ambas variables:
+
+```sh
+python3 -m unittest discover -s tests -p test_codegraph.py
+python3 -m unittest discover -s tests -p test_motor.py
+```
+
+Estos contratos ejercen MCP, búsquedas, cambios y borrados sin usar Databricks. Se omiten
+si falta el ejecutable indicado; las pruebas unitarias siguen comprobando las fronteras.
+
 Comprobaciones específicas de documentación y evaluación:
 
 ```sh
