@@ -19,8 +19,8 @@ UninstallDisplayIcon={app}\cuy.exe
 Source: "{#Package}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Configurar Cuy"; Filename: "{app}\cuy.exe"; Parameters: "configurar"; WorkingDir: "{userprofile}"
-Name: "{group}\Diagnóstico de Cuy"; Filename: "{app}\cuy.exe"; Parameters: "doctor"; WorkingDir: "{userprofile}"
+Name: "{group}\Configurar Cuy"; Filename: "{app}\cuy.exe"; Parameters: "configurar"; WorkingDir: "{app}"
+Name: "{group}\Diagnóstico de Cuy"; Filename: "{app}\cuy.exe"; Parameters: "doctor"; WorkingDir: "{app}"
 
 [Run]
 Filename: "{app}\cuy.exe"; Parameters: "configurar"; Description: "Configurar conexión a Databricks"; Flags: postinstall skipifsilent unchecked
