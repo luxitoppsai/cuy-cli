@@ -18,8 +18,9 @@ import sys
 import tempfile
 import urllib.request
 import urllib.parse
+from distribucion import datos, recursos, empaquetado
 
-RAIZ = Path(__file__).resolve().parent
+RAIZ = datos()
 VERSION = "0.20.1"
 MAX_ARCHIVO = 1024 * 1024
 MAX_ARCHIVOS = 5000
@@ -226,7 +227,7 @@ def asegurar_binario() -> Path:
     :returns: Ejecutable nativo de CodeGraph, separado del motor de Cuy.
     :raises ValueError: Si el contrato o checksum no coincide.
     """
-    manifiesto = json.loads((RAIZ / "codegraph-release.json").read_text(encoding="utf-8"))
+    manifiesto = json.loads(((recursos() if empaquetado() else RAIZ) / "codegraph-release.json").read_text(encoding="utf-8"))
     if manifiesto["version"] != VERSION:
         raise ValueError("Versión de CodeGraph incompatible; actualizá el repositorio completo.")
     asset = _plataforma()
@@ -494,8 +495,8 @@ def configurar(entorno: dict, carpeta: Path) -> dict:
         preparar(raiz, binario)
         config = json.loads(entorno["OPENCODE_CONFIG_CONTENT"])
         config.setdefault("mcp", {})["cuy_codegraph"] = {
-            "type": "local", "command": [sys.executable, str(RAIZ / "codegraph.py"),
-                                          "serve", str(raiz), str(binario)],
+            "type": "local", "command": ([sys.executable, "_codegraph"] if empaquetado()
+                else [sys.executable, str(RAIZ / "codegraph.py"), "serve"]) + [str(raiz), str(binario)],
             "enabled": True, "timeout": (TIMEOUT + 10) * 1000,
             "environment": {"PYTHONUTF8": "1"},
         }
@@ -504,7 +505,7 @@ def configurar(entorno: dict, carpeta: Path) -> dict:
         for nombre in ("plan", "explore"):
             config["agent"][nombre]["permission"].update(permisos)
         config["instructions"] = list(dict.fromkeys([*config.get("instructions", []),
-            str(RAIZ / "instrucciones" / "CODEGRAPH.md")]))
+            str((recursos() if empaquetado() else RAIZ) / "instrucciones" / "CODEGRAPH.md")]))
         return {**entorno, "OPENCODE_CONFIG_CONTENT": json.dumps(config)}
     except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as exc:
         # No volcar stderr del indexador ni rutas/contenidos de fuentes.

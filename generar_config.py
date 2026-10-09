@@ -25,8 +25,9 @@ import urllib.error
 import urllib.request
 
 from configuracion import escribir_json, validar_host, cargar_archivo_env, validar_token
+from distribucion import datos
 
-RAIZ = pathlib.Path(__file__).resolve().parent
+RAIZ = datos()
 
 # Un agente necesita razonar y editar; los modelos de embeddings no sirven acá.
 TAREA_CHAT = "llm/v1/chat"

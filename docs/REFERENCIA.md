@@ -21,7 +21,7 @@ consulta; las tareas explícitas descritas abajo conservan su ejecución sin ese
 ./cuy demo                            # resultado de ejemplo, sin inferencia
 ```
 
-En Windows se usa `cuy.cmd`. Los tres flujos requieren un repositorio Git con un commit.
+En Windows se usa `cuy.exe` en el paquete compilado. Los tres flujos requieren un repositorio Git con un commit.
 `--proyecto /ruta/al/repo` elige otro proyecto. `--json` devuelve el informe estructurado.
 `--timeout 600` fija el tiempo máximo del motor y de **cada** prueba; no es un límite total
 ni un presupuesto por tarea.
@@ -91,6 +91,11 @@ inspeccionar los estados sin ejecutar tareas.
 
 ## Origen y actualización del motor
 
+El paquete completo incorpora el motor y su runtime. Se instala con el instalador
+Windows o con `cuy instalar` desde el paquete portable; se actualiza descargando la
+nueva distribución del equipo. No requiere clonar fuentes ni instalar Python.
+Las opciones siguientes corresponden al instalador anterior usado desde fuentes.
+
 - **Predeterminado:** descarga el binario de **cuycli** publicado para tu sistema,
   fijado por `release.json`, y verifica su SHA-256 antes de instalarlo.
 - En la computadora de trabajo solo hace falta Python: **no Bun, npm ni compilación**.
@@ -104,7 +109,10 @@ inspeccionar los estados sin ejecutar tareas.
 ### VS Code Web en Azure Machine Learning
 
 Las instancias de cómputo Linux x86-64 usan el artefacto `cuy-linux-x64` de la versión
-fijada en `release.json`. Desde el terminal de VS Code Web, dentro del clon del proyecto, ejecutá:
+fijada en `release.json` al usar el instalador anterior desde fuentes. Para el paquete
+compilado, instala la distribución Linux desde la terminal de la instancia. Su
+arquitectura corresponde a la instancia, no a tu computadora. El procedimiento
+anterior desde fuentes es:
 
 ```sh
 python3 instalar.py --reparar-motor
@@ -165,9 +173,7 @@ rechazada por el motor; no asumas que una prueba pendiente fue ejecutada.
 ## Presupuesto y eficiencia
 
 ```bash
-python3 gasto.py
-CUY_LIMITE_USD=3 ./cuy              # macOS/Linux
-# PowerShell: $env:CUY_LIMITE_USD="3"; .\cuy.cmd
+cuy gasto
 ```
 
 El plugin comprueba el gasto mensual en `chat.params`, **antes de cada inferencia que
@@ -178,12 +184,16 @@ sesiones. Cuenta eventos `step-finish` una sola vez por identificador.
 La persistencia usa lock entre procesos y reemplazo atómico. Un archivo corrupto o un
 fallo contable bloquea la siguiente inferencia; no se interpreta como cero. Un lock
 huérfano tras un cierre abrupto requiere revisar procesos activos antes de retirarlo.
-El archivo está en `~/.local/share/cuy-cli/gasto.json` (`CUY_GASTO` cambia la ruta).
+El archivo está en `~/.local/share/cuy-cli/gasto.json`. El paquete fija la ruta;
+la opción de ruta alternativa se conserva para desarrollo desde fuentes.
 
 Con tope activo, un modelo sin tarifas positivas `cost.input`/`cost.output` se rechaza.
 **Costo desconocido no significa gratis.** Se pueden declarar tarifas del contrato en
 el modelo de `opencode.json`; `CUY_USD_POR_DBU` ajusta la conversión al regenerar.
-`CUY_LIMITE_USD=0` desactiva explícitamente el tope local.
+El importe mensual se incorpora a la distribución; no se modifica ni desactiva
+con variables de ejecución. Los plugins de Cuy van incorporados al nuevo motor y
+se cargan aunque se deshabiliten los plugins opcionales. No dependen de JavaScript
+editable en el paquete. Véase [RFC-006](rfc/RFC-006-distribucion-compilada.md).
 
 Es una **estimación local**, no un límite de facturación estricto: una petición iniciada
 antes del corte puede exceder el saldo y varias peticiones simultáneas pueden estar en
@@ -193,6 +203,22 @@ caché deben contrastarse con el contrato y consumo del servidor. El límite cor
 pertenece al Gateway, fuera del control del usuario local.
 
 ## Secretos y auditoría
+
+### Protección de ediciones en desarrollo
+
+La primera etapa del [RFC-005](rfc/RFC-005-robustez-del-agente.md) añade al fuente
+del motor una comparación SHA-256 de los bytes usados para preparar `write`, `edit`
+y `apply_patch`, después de la aprobación y antes de escribir. Si cambian, la
+herramienta falla y pide releer. Un parche comprueba todos los archivos antes de la
+primera modificación; los movimientos requieren permiso para origen y destino.
+Las altas y destinos de movimientos no pueden sobrescribir archivos existentes.
+Para modificar un archivo existente se utiliza una actualización o reemplazo explícito.
+
+Esto todavía no compara con una lectura anterior de la conversación ni protege el
+undo existente. Tampoco cubre escrituras hechas por shell, MCP o formateadores.
+La comprobación deja una ventana antes de escribir y no convierte un parche en una
+transacción atómica. Estas mejoras requieren un motor compilado con el cambio;
+no se incorporan a la release 0.4.3 mediante una actualización de Python.
 
 El plugin rechaza rutas sensibles conocidas y redacta patrones en salidas de herramientas,
 títulos y metadatos. Incluye PATs, claves privadas, asignaciones entre comillas en código

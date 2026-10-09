@@ -34,8 +34,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import generar_config as gc
 from ejecutables import validar_windows
 from configuracion import escribir_json, validar_host, leer_env, validar_token
+from distribucion import datos, recursos, empaquetado
 
-RAIZ = pathlib.Path(__file__).resolve().parent
+RAIZ = datos()
 ENV = RAIZ / ".env"
 CONFIG = RAIZ / "opencode.json"
 
@@ -408,6 +409,9 @@ def instalar_plugin() -> None:
 
     :returns: Nada.
     """
+    if empaquetado():
+        print("  ✓ Plugins incorporados: presupuesto, auditoría y secretos")
+        return
     for nombre in ("presupuesto", "auditoria", "secretos"):
         if not (RAIZ / "plugin" / f"{nombre}.js").is_file():
             _error(f"Falta el plugin {nombre}; restaurá el checkout.")

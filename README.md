@@ -18,40 +18,50 @@ Puedes usarlo de dos formas: una **conversación interactiva** para trabajar pas
 
 Necesitas:
 
-- **Python 3.10 o posterior** y **Git**.
+- **Git**, para las operaciones sobre repositorios.
 - Un equipo con **Windows, macOS o Linux** (x64 o ARM64).
 - La URL de tu workspace de **Databricks** y un token válido con acceso a los endpoints que vas a usar.
 - Conexión a tu workspace y al servidor de distribución del ejecutable.
 
-La instalación normal descarga un binario preparado para tu sistema y verifica su checksum. **No necesitas Node, npm ni Bun.** Las consultas a modelos consumen recursos de Databricks; la instalación también realiza consultas para descubrir y comprobar modelos.
+El paquete incluye el lanzador, su runtime y el motor. **No necesitas clonar el repositorio ni instalar Python, Node, npm o Bun.** Las consultas a modelos consumen recursos de Databricks; la configuración también realiza consultas para descubrir y comprobar modelos.
+
+La distribución compilada está preparada para validación local; solicita a tu equipo el paquete aprobado para tu sistema. No confundas la release anterior del motor con el paquete completo.
 
 ## Instalación
 
-Usa la URL de clonación que proporcione tu equipo en lugar de `URL_DEL_REPOSITORIO`.
-Los ejemplos crean una carpeta local llamada `cuy-cli`, independientemente del nombre
-del repositorio remoto. Las rutas de ejemplo se sustituyen por las de tu equipo.
+Descarga el paquete para tu sistema desde el servidor que indique tu equipo y
+comprueba su SHA-256 contra el manifiesto proporcionado. En Windows x64, abre el
+instalador `.exe` y sigue sus pasos; el acceso «Configurar Cuy» prepara Databricks.
+Para macOS/Linux, o si tu equipo entrega el ZIP portable, extrae la carpeta completa
+y conserva el ejecutable y `_internal` juntos. Los siguientes comandos corresponden
+al paquete portable.
 
 ### macOS y Linux
 
 ```bash
-git clone "URL_DEL_REPOSITORIO" cuy-cli
-cd cuy-cli
-python3 instalar.py
-./cuy
+cd /ruta/al/paquete-extraido
+./cuy instalar
 ```
 
 ### Windows · PowerShell
 
 ```powershell
-git clone "URL_DEL_REPOSITORIO" cuy-cli
-cd cuy-cli
-python instalar.py
-.\cuy.cmd
+cd C:\ruta\al\paquete-extraido
+.\cuy.exe instalar
 ```
 
-El instalador solicita la URL del workspace y el token de forma oculta, descubre los modelos disponibles, genera la configuración y comprueba una respuesta. Guarda el token solicitado en `.env` (o reutiliza el del entorno) y la configuración en `opencode.json`, dentro de la carpeta de Cuy; ambos están excluidos de Git.
+El comando muestra la ruta instalada. Usa ese ejecutable para configurar la conexión:
 
-Si cambias de workspace, vuelve a ejecutar el instalador con la URL y la credencial correspondientes.
+```text
+cuy configurar --host https://TU-WORKSPACE
+```
+
+Usa su ruta completa, o añade la carpeta del ejecutable al PATH. En PowerShell,
+antepone `&` a una ruta entre comillas. La configuración solicita el token de forma
+oculta, descubre modelos y comprueba una respuesta. Guarda `.env` y `opencode.json`
+en `~/.local/share/cuy-cli`, separados de la aplicación y del proyecto.
+
+Si cambias de workspace, vuelve a ejecutar `cuy configurar` con la URL y credencial correspondientes.
 
 ## Primera conversación en tu proyecto
 
@@ -68,7 +78,7 @@ cd /ruta/a/mi-proyecto
 
 ```powershell
 cd C:\ruta\a\mi-proyecto
-& "C:\ruta\a\cuy-cli\cuy.cmd"
+& "C:\ruta\a\cuy-cli\cuy.exe"
 ```
 
 Cuy trabaja sobre la carpeta actual. Escribe directamente lo que necesitas: entender código,
@@ -101,7 +111,7 @@ para conocer qué incluye y sus límites.
 
 ## Tareas con un resultado para revisar
 
-Los comandos `tarea` requieren un repositorio Git con al menos un commit. Estos ejemplos parten de la carpeta donde instalaste Cuy; `--proyecto` indica el repositorio de trabajo. En Windows, sustituye `./cuy` por `.\cuy.cmd`.
+Los comandos `tarea` requieren un repositorio Git con al menos un commit. Estos ejemplos parten de la carpeta donde instalaste Cuy; `--proyecto` indica el repositorio de trabajo. En Windows, sustituye `./cuy` por `.\cuy.exe`.
 
 ```bash
 ./cuy tarea entender "Explica el recorrido de un pedido" --proyecto /ruta/al/repo
@@ -145,22 +155,12 @@ Desde la carpeta de instalación (o usando la ruta completa al lanzador):
 | `./cuy costos` | Revisar las tarifas configuradas |
 | `./cuy demo` | Ver un resultado simulado sin llamar al modelo |
 
-En Windows usa `.\cuy.cmd` en lugar de `./cuy`. También puedes ver la [captura de la demo](docs/demo.png) o abrir [la demo HTML](docs/demo.html) localmente.
+En Windows usa `.\cuy.exe` en lugar de `./cuy`. También puedes ver la [captura de la demo](docs/demo.png) o abrir [la demo HTML](docs/demo.html) localmente.
 
 ## Gasto y datos del proyecto
 
-El límite local predeterminado es **USD 10 al mes**. Puedes cambiarlo para la terminal actual:
-
-```bash
-# macOS y Linux
-CUY_LIMITE_USD=3 ./cuy
-```
-
-```powershell
-# Windows · PowerShell
-$env:CUY_LIMITE_USD="3"
-.\cuy.cmd
-```
+El presupuesto mensual local lo define tu equipo en la distribución. Puedes consultar
+el consumo y el límite vigente con `cuy gasto`; no se ajusta desde las opciones de uso.
 
 El gasto es una estimación basada en los tokens y las tarifas configuradas. El límite se comprueba entre llamadas: una solicitud en curso puede superarlo y las consultas del instalador no se incluyen. **No sustituye un límite de facturación en Databricks.** Con el tope activo, un modelo sin tarifas conocidas se bloquea. Más información en [costos y contexto](docs/COSTOS-Y-CONTEXTO.md).
 
@@ -168,27 +168,27 @@ Los mensajes y el código que el agente utiliza como contexto se envían al prov
 
 ## Si algo falla
 
-**Empieza por el diagnóstico:** ejecuta `./cuy doctor` (Windows: `.\cuy.cmd doctor`). Añade `--verificar` si necesitas comprobar una llamada real al modelo.
+**Empieza por el diagnóstico:** ejecuta `./cuy doctor` (Windows: `.\cuy.exe doctor`). Añade `--verificar` si necesitas comprobar una llamada real al modelo.
 
 ### Databricks devuelve 401
 
 Comprueba que la URL corresponde al workspace correcto y que el token sigue vigente. Desde la carpeta de Cuy, puedes renovarlo sin escribirlo en el historial:
 
 ```bash
-python3 instalar.py --renovar-token --host https://TU-WORKSPACE
+cuy configurar --renovar-token --host https://TU-WORKSPACE
 ```
 
-En Windows usa `python`. Si ya tienes `DATABRICKS_TOKEN` exportado en la terminal, tiene prioridad sobre `.env`: actualízalo o elimínalo con `unset DATABRICKS_TOKEN` (macOS/Linux) o `Remove-Item Env:DATABRICKS_TOKEN` (PowerShell) antes de usar la credencial del archivo.
+Si ya tienes `DATABRICKS_TOKEN` exportado en la terminal, tiene prioridad sobre `.env`: actualízalo o elimínalo con `unset DATABRICKS_TOKEN` (macOS/Linux) o `Remove-Item Env:DATABRICKS_TOKEN` (PowerShell) antes de usar la credencial del archivo.
 
 ### El ejecutable no arranca o quieres actualizarlo
 
-Para actualizar, primero actualiza tu copia del repositorio. Después, desde la carpeta de Cuy, reinstala el motor correspondiente a tu sistema:
+Descarga y extrae el nuevo paquete completo para tu sistema. Desde esa carpeta, ejecuta:
 
 ```bash
-python3 instalar.py --reparar-motor
+cuy instalar
 ```
 
-En Windows usa `python` y abre Cuy con `.\cuy.cmd`. La reparación descarga el ejecutable sin consultar Databricks ni modificar el token o los modelos configurados. Si `python --version` también falla, corrige primero la instalación de Python.
+Usa `./cuy instalar` en macOS/Linux o `.\cuy.exe instalar` en Windows. La reinstalación conserva el token, los modelos configurados y la contabilidad. Si falta `_internal`, vuelve a extraer el paquete completo.
 
 En VS Code Web de Azure Machine Learning, ejecuta la instalación desde la terminal de la instancia Linux. Se descarga el binario de esa instancia, no el de tu computadora.
 

@@ -22,6 +22,8 @@ const skipInstall = process.argv.includes("--skip-install")
 const sourcemapsFlag = process.argv.includes("--sourcemaps")
 const plugin = createSolidTransformPlugin()
 const skipEmbedWebUi = process.argv.includes("--skip-embed-web-ui")
+const budget = Number(process.env.CUY_BUILD_PRESUPUESTO_USD ?? "10")
+if (!Number.isFinite(budget) || budget <= 0) throw new Error("Build budget must be positive and finite")
 
 const createEmbeddedWebUIBundle = async () => {
   console.log(`Building Web UI to embed in the binary`)
@@ -199,6 +201,8 @@ for (const item of targets) {
       ...(embeddedFileMap ? ["opencode-web-ui.gen.ts"] : []),
     ],
     define: {
+      CUY_DISTRIBUCION: "true",
+      CUY_PRESUPUESTO_USD: JSON.stringify(budget),
       FFF_LIBC: JSON.stringify(item.abi === "musl" ? "musl" : "gnu"),
       OPENCODE_VERSION: `'${Script.version}'`,
       OPENCODE_MODELS_DEV: generated.modelsData,

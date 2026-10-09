@@ -71,6 +71,53 @@ Databricks; consulta [evaluación](../evaluacion/README.md).
 
 ## Compilar una release
 
+### Paquete completo para usuarios
+
+El código fuente pertenece al repositorio de mantenimiento; los usuarios reciben
+solo los artefactos aprobados. El paquete completo incluye runtime Python, lanzador,
+motor y recursos. La release antigua contiene únicamente el motor.
+
+Instala `requirements-build.txt` en un entorno de Python 3.12 del sistema de destino.
+Compila desde `vendor/opencode/packages/opencode` con Bun y el lockfile existente:
+
+```sh
+OPENCODE_VERSION=X.Y.Z OPENCODE_CHANNEL=cuycli OPENCODE_RELEASE='' \
+  bun run script/build.ts --single --skip-embed-web-ui --skip-install
+```
+
+Requiere haber instalado previamente las dependencias de `vendor/opencode` con
+`bun install --frozen-lockfile`. Usa el motor producido para el mismo SO y arquitectura
+de Python; `scripts/empaquetar.py` comprueba su encabezado y su política.
+
+Desde la raíz, sustituye la ruta por la del motor recién generado:
+
+```sh
+python scripts/empaquetar.py X.Y.Z --motor RUTA_DEL_MOTOR
+```
+
+**Administración del presupuesto (solo mantenimiento):** fija un importe positivo
+mediante `CUY_BUILD_PRESUPUESTO_USD` al compilar el motor y pasa ese mismo importe a
+`scripts/empaquetar.py --presupuesto-usd`. El preparador rechaza discrepancias. Cambiar
+el importe requiere generar y distribuir un paquete nuevo; no hay clave ni opción
+de ejecución que lo modifique. Esta vía no se incluye en el README ni en los recursos
+de uso del paquete. Restringe el acceso al repositorio de mantenimiento; no se puede
+prometer que quien tenga sus fuentes desconozca el procedimiento.
+
+El workflow manual `paquetes.yml` prepara artefactos en Windows, macOS y Linux y
+ejecuta contratos del motor y paquete. En Windows x64 requiere Inno Setup 6: genera
+el instalador `.exe` y prueba una instalación silenciosa. Solo sube artefactos de CI;
+no publica una release ni cambia el manifiesto de descarga del motor antiguo.
+Puede adaptarse a la CI del equipo sin cambiar el paquete.
+
+El empaquetado sigue las rutas de recursos y ejecutable de
+[PyInstaller](https://pyinstaller.org/en/stable/runtime-information.html).
+Inno Setup permite instalación por usuario con
+[PrivilegesRequired=lowest](https://jrsoftware.org/ishelp/topic_setup_privilegesrequired.htm).
+Las firmas corporativas y las pruebas en los sistemas de destino son parte de la
+aprobación de distribución. No se acreditan por compilar desde otro sistema.
+
+### Release del motor para instalaciones desde fuentes
+
 Requiere Python 3.11 o posterior (el script usa `hashlib.file_digest`) y la versión de Bun
 indicada en `packageManager` de `vendor/opencode/package.json`. Mantén ese árbol de fuentes
 al copiar el proyecto. El script instala sus dependencias con el lockfile de Bun.

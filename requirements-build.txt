@@ -1,0 +1,2 @@
+# Solo en el equipo/CI que genera las distribuciones.
+pyinstaller==6.22.3

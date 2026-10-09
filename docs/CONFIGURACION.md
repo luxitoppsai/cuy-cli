@@ -1,17 +1,20 @@
 # Configuración
 
 Cuy separa la carpeta de instalación del proyecto donde trabaja. Los archivos de configuración
-se buscan junto a `cuy.py`, independientemente de la carpeta desde la que lo ejecutes.
+se buscan en `~/.local/share/cuy-cli` en el paquete compilado, independientemente
+de la carpeta desde la que lo ejecutes. En desarrollo desde fuentes se conservan
+junto al lanzador.
 Los ejemplos usan nombres genéricos y funcionan con cualquier remoto del repositorio.
 
 ## Archivos y precedencia
 
 - `.env`: credencial local y opciones del lanzador. Excluido de Git.
 - `opencode.json`: modelos, proveedores y tarifas generados por el instalador. No se versiona.
-- `bin/seleccion.json`: ejecutable seleccionado; contiene una ruta local absoluta. Si mueves la instalación, ejecuta `python3 instalar.py --reparar-motor` desde su nueva ubicación.
+- El paquete contiene el motor en `_internal/motor`; no usa una selección de ejecutable editable. En instalaciones desde fuentes, `bin/seleccion.json` conserva la selección del instalador anterior.
 - `AGENTS.md` del proyecto de trabajo: instrucciones para el agente. Cuy no carga la configuración `opencode.json` ni los plugins locales de ese proyecto.
 - `codegraph-release.json`: versión y hashes del indexador, versionados junto al código.
-  Su binario verificado se guarda en `bin/codegraph/<version>/` de la instalación.
+  Su binario verificado se guarda en `bin/codegraph/<version>/` de los datos locales
+  en el paquete, o de la instalación al usar fuentes.
 - `.cuy/codegraph/` del proyecto de trabajo: copia e índice local, preparados al abrir
   una conversación. El lanzador añade MCP y permisos de consulta solo a la configuración
   de esa ejecución. Consulta [el índice del repositorio](INDICE-DEL-REPOSITORIO.md).
@@ -40,11 +43,9 @@ todos los scripts cargan `.env` por sí solos.
 |---|---|---|
 | `DATABRICKS_HOST` | Sin valor fijo | URL HTTPS raíz del workspace para el instalador |
 | `DATABRICKS_TOKEN` | Sin valor fijo | PAT o access token OAuth suministrado por el usuario; no hay renovación OAuth automática |
-| `CUY_LIMITE_USD` | `10` | Tope mensual local estimado; `0` lo desactiva |
-| `CUY_AVISO_PORCENTAJE` | `80` | Umbral porcentual de aviso del presupuesto |
 | `CUY_USD_POR_DBU` | `0.07` | Conversión de referencia al generar o actualizar tarifas; no modifica gastos históricos |
 | `CUY_TARIFAS` | Sin archivo personalizado | Ruta de JSON con tarifas contractuales por endpoint |
-| `CUY_GASTO` | `~/.local/share/cuy-cli/gasto.json` | Archivo de contabilidad local |
+| `CUY_GASTO` | `~/.local/share/cuy-cli/gasto.json` | Ruta alternativa solo para desarrollo desde fuentes; el paquete conserva su ruta fija |
 | `CUY_TAREAS` | `~/.local/share/cuy-cli/tareas` | Resultados; debe estar fuera del proyecto analizado |
 | `CUY_AUDITORIA` | `~/.local/share/cuy-cli/auditoria.jsonl` | Registro local de actividad |
 | `CUY_RETENCION_DIAS` | `90` | Retención de auditoría; `0` desactiva la limpieza por antigüedad |
@@ -59,12 +60,13 @@ para el formato de tarifas y [referencia técnica](REFERENCIA.md) para el alcanc
 Ejemplo de opciones no secretas en `.env`:
 
 ```dotenv
-CUY_LIMITE_USD=5
-CUY_AVISO_PORCENTAJE=80
 CUY_RETENCION_DIAS=90
 ```
 
 No copies credenciales en comandos ni ejemplos. El instalador solicita el token de forma oculta.
+
+El presupuesto y el umbral de aviso proceden de la distribución; `.env` y las
+variables de la terminal no los cambian ni desactivan. `cuy gasto` muestra el importe.
 
 ## Datos locales
 
@@ -99,6 +101,5 @@ usa su propio `AGENTS.md` para comandos de prueba, arquitectura y convenciones d
 Las buenas prácticas generales indican que se respeten esas convenciones específicas.
 
 La carga de `AGENTS.md` del proyecto con configuración local desactivada está disponible
-desde el motor 0.4.3. Después de actualizar el repositorio, ejecuta
-`python3 instalar.py --reparar-motor` (Windows: `python`) para instalar esa versión.
+desde el motor 0.4.3. Actualiza mediante el paquete aprobado por tu equipo.
 Los binarios anteriores pueden seguir omitiendo esas instrucciones.

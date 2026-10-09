@@ -40,8 +40,8 @@ Fuentes consultadas el 2026-09-25:
 Desde la carpeta del proyecto, sin hacer llamadas a los modelos:
 
 ```powershell
-python cuy.py costos
-python cuy.py costos --actualizar
+cuy costos
+cuy costos --actualizar
 ```
 
 La actualización reemplaza tarifas con referencia conocida y conserva las demás,
@@ -53,13 +53,13 @@ Para usar precios contractuales exactos, creá un JSON con claves iguales a las 
 modelo en la configuración y definí `CUY_TARIFAS` con la ruta del archivo. Los cuatro
 campos aceptados son `input`, `output`, `cache_read` y `cache_write`, en **USD por
 millón de tokens**. `input` y `output` son obligatorios. No incluyas credenciales.
-Luego ejecutá `python cuy.py costos --actualizar`. Las tarifas personalizadas tienen
+Luego ejecutá `cuy costos --actualizar`. Las tarifas personalizadas tienen
 prioridad sobre las públicas.
 
 Si disponés del importe real del **mismo mes y exactamente las mismas solicitudes**:
 
 ```powershell
-python cuy.py costos --mes 2026-09 --real-usd 12.34
+cuy costos --mes 2026-09 --real-usd 12.34
 ```
 
 Este comando muestra la diferencia absoluta y porcentual. No valida el alcance de

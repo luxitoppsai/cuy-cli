@@ -13,10 +13,11 @@ import re
 
 from configuracion import numero_entorno, leer_gasto
 from datetime import datetime
+from politica import LIMITE_USD
 
 CARPETA = pathlib.Path.home() / ".local" / "share" / "cuy-cli"
 GASTO = pathlib.Path(os.environ.get("CUY_GASTO", CARPETA / "gasto.json"))
-LIMITE = numero_entorno("CUY_LIMITE_USD", 10)
+LIMITE = LIMITE_USD
 
 
 def main() -> int:

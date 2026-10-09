@@ -87,6 +87,54 @@ const expectFailure = <A, E, R>(effect: Effect.Effect<A, E, R>, message?: string
 const expectReadFailure = (filepath: string) => expectFailure(readText(filepath))
 
 describe("tool.apply_patch freeform", () => {
+  it.instance("preserves all files when one patch target changes during approval", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const first = path.join(test.directory, "first.txt")
+      const second = path.join(test.directory, "second.txt")
+      yield* writeText(first, "first\n")
+      yield* writeText(second, "second\n")
+      const { ctx } = makeCtx()
+      ctx.ask = () => writeText(second, "user change\n")
+      yield* expectFailure(execute({ patchText: "*** Begin Patch\n*** Update File: first.txt\n@@\n-first\n+agent\n*** Delete File: second.txt\n*** End Patch" }, ctx), "File changed")
+      expect(yield* readText(first)).toBe("first\n")
+      expect(yield* readText(second)).toBe("user change\n")
+    }),
+  )
+
+  for (const concurrent of [false, true]) {
+    it.instance(`rejects ${concurrent ? "concurrently created" : "existing"} move destination`, () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const source = path.join(test.directory, "source.txt")
+        const target = path.join(test.directory, "target.txt")
+        yield* writeText(source, "original\n")
+        if (!concurrent) yield* writeText(target, "user\n")
+        const { ctx, calls } = makeCtx()
+        if (concurrent) ctx.ask = (input) => Effect.gen(function* () {
+          calls.push(input)
+          if (input.permission === "edit") yield* writeText(target, "user\n")
+        })
+        yield* expectFailure(execute({ patchText: "*** Begin Patch\n*** Update File: source.txt\n*** Move to: target.txt\n@@\n-original\n+agent\n*** End Patch" }, ctx), "File changed")
+        expect(yield* readText(source)).toBe("original\n")
+        expect(yield* readText(target)).toBe("user\n")
+        if (concurrent) expect(calls.find((call) => call.permission === "edit")?.patterns.map((file) => path.basename(file))).toEqual(["source.txt", "target.txt"])
+      }),
+    )
+  }
+
+  it.instance("rejects adding a file over existing content", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const target = path.join(test.directory, "existing.txt")
+      yield* writeText(target, "user\n")
+      const { ctx, calls } = makeCtx()
+      yield* expectFailure(execute({ patchText: "*** Begin Patch\n*** Add File: existing.txt\n+agent\n*** End Patch" }, ctx), "File changed")
+      expect(yield* readText(target)).toBe("user\n")
+      expect(calls).toHaveLength(0)
+    }),
+  )
+
   it.live("requires patchText", () =>
     Effect.gen(function* () {
       const { ctx } = makeCtx()
@@ -297,7 +345,7 @@ describe("tool.apply_patch freeform", () => {
     }),
   )
 
-  it.instance("moves file overwriting existing destination", () =>
+  it.instance("rejects move over existing destination and preserves both files", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
@@ -311,14 +359,13 @@ describe("tool.apply_patch freeform", () => {
       const patchText =
         "*** Begin Patch\n*** Update File: old/name.txt\n*** Move to: renamed/dir/name.txt\n@@\n-from\n+new\n*** End Patch"
 
-      yield* execute({ patchText }, ctx)
-
-      yield* expectReadFailure(original)
-      expect(yield* readText(destination)).toBe("new\n")
+      yield* expectFailure(execute({ patchText }, ctx), "File changed")
+      expect(yield* readText(original)).toBe("from\n")
+      expect(yield* readText(destination)).toBe("existing\n")
     }),
   )
 
-  it.instance("adds file overwriting existing file", () =>
+  it.instance("rejects add over existing file and preserves its contents", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
       const { ctx } = makeCtx()
@@ -327,8 +374,8 @@ describe("tool.apply_patch freeform", () => {
 
       const patchText = "*** Begin Patch\n*** Add File: duplicate.txt\n+new content\n*** End Patch"
 
-      yield* execute({ patchText }, ctx)
-      expect(yield* readText(target)).toBe("new content\n")
+      yield* expectFailure(execute({ patchText }, ctx), "File changed")
+      expect(yield* readText(target)).toBe("old content\n")
     }),
   )
 

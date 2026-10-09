@@ -102,7 +102,8 @@ class Motor(unittest.TestCase):
         env.update(cuy.BLINDAJE)
         env.update({f"XDG_{kind}_HOME": str(self.root / kind.lower()) for kind in ("CONFIG", "DATA", "CACHE", "STATE")})
         env.update({"OPENCODE_TEST_HOME": str(self.root), "PWD": str(self.root), "OPENCODE_CONFIG_CONTENT": json.dumps(config), "CUY_GASTO": str(self.root / "gasto.json"), "CUY_AUDITORIA": str(self.root / "auditoria.jsonl"), "CUY_LIMITE_USD": "10"})
-        (self.root / "gasto.json").write_text(json.dumps({datetime.now().strftime("%Y-%m"): 10 if agotado else 0}))
+        limite = float(os.environ.get("CUY_TEST_PRESUPUESTO_USD", "10"))
+        (self.root / "gasto.json").write_text(json.dumps({datetime.now().strftime("%Y-%m"): limite if agotado else 0}))
         return env
 
     def ejecutar(self, agente="build", agotado=False):
@@ -140,6 +141,31 @@ class Motor(unittest.TestCase):
         result = self.ejecutar(agotado=True)
         self.assertEqual(self.requests, [], (result.stdout + result.stderr)[-3000:])
         self.assertIn("Tope mensual", result.stdout + result.stderr)
+
+    @unittest.skipIf("node_modules" in Path(os.environ.get("CUY_TEST_BINARIO", "")).parts,
+                     "Requiere distribución Cuy con plugins incorporados")
+    def test_presupuesto_incorporado_no_se_desactiva_con_env_o_config(self):
+        """El motor conserva el freno sin plugins externos ni plugins opcionales."""
+        env = self.entorno(agotado=True)
+        config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
+        config["plugin"] = []
+        env.update({"CUY_LIMITE_USD": "0", "CUY_AVISO_PORCENTAJE": "999",
+                    "OPENCODE_DISABLE_DEFAULT_PLUGINS": "1", "OPENCODE_PURE": "1",
+                    "OPENCODE_CONFIG_CONTENT": json.dumps(config)})
+        result = subprocess.run([os.environ["CUY_TEST_BINARIO"], "run", "--format", "json",
+            "--agent", "build", "No debe llegar al proveedor"], cwd=self.root, env=env,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT_MOTOR_S)
+        self.assertEqual(self.requests, [], (result.stdout + result.stderr)[-3000:])
+        self.assertIn("Tope mensual", result.stdout + result.stderr)
+
+    @unittest.skipIf("node_modules" in Path(os.environ.get("CUY_TEST_BINARIO", "")).parts,
+                     "Requiere distribución Cuy con política incorporada")
+    def test_politica_del_motor_coincide_con_importe_de_compilacion(self):
+        result = subprocess.run([os.environ["CUY_TEST_BINARIO"], "--cuy-policy"],
+            capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {"bundled": True,
+            "budget": float(os.environ.get("CUY_TEST_PRESUPUESTO_USD", "10"))})
 
     def test_build_edita_y_audita_resultado(self):
         result = self.ejecutar()

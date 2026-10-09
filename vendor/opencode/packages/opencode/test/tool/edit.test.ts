@@ -69,6 +69,24 @@ const load = Effect.fn("EditToolTest.load")(function* (p: string) {
   return yield* fs.readFileString(p)
 })
 
+for (const initial of [undefined, "original\r\n"]) {
+  it.instance(`edit preserves concurrent ${initial === undefined ? "creation" : "modification"} during approval`, () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const filepath = path.join(test.directory, "concurrent.txt")
+      if (initial !== undefined) yield* put(filepath, initial)
+      const result = yield* Effect.exit(
+        run({ filePath: filepath, oldString: initial === undefined ? "" : "original", newString: "agent" }, {
+          ...ctx,
+          ask: () => Effect.promise(() => fs.writeFile(filepath, "user change\r\n")),
+        }),
+      )
+      expect(Exit.isFailure(result)).toBe(true)
+      expect(yield* load(filepath)).toBe("user change\r\n")
+    }),
+  )
+}
+
 const loadRaw = Effect.fn("EditToolTest.loadRaw")(function* (p: string) {
   return yield* Effect.promise(() => fs.readFile(p, "utf-8"))
 })

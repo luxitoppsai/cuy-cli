@@ -14,6 +14,7 @@ import DESCRIPTION from "./apply_patch.txt"
 import { FileSystem } from "@opencode-ai/core/filesystem"
 import { Format } from "../format"
 import * as Bom from "@/util/bom"
+import { assertVersion } from "./file-version"
 
 export const Parameters = Schema.Struct({
   patchText: Schema.String.annotate({ description: "The full patch text that describes all changes to be made" }),
@@ -68,13 +69,19 @@ export const ApplyPatchTool = Tool.define(
       }> = []
 
       let totalDiff = ""
+      const versions = new Map<string, string | null>()
 
       for (const hunk of hunks) {
         const filePath = path.resolve(instance.directory, hunk.path)
         yield* assertExternalDirectoryEffect(ctx, filePath)
+        if (versions.has(filePath)) {
+          return yield* Effect.fail(new Error(`Duplicate patch target: ${filePath}`))
+        }
 
         switch (hunk.type) {
           case "add": {
+            yield* assertVersion(afs, filePath, null)
+            versions.set(filePath, null)
             const oldContent = ""
             const newContent =
               hunk.contents.length === 0 || hunk.contents.endsWith("\n") ? hunk.contents : `${hunk.contents}\n`
@@ -113,6 +120,7 @@ export const ApplyPatchTool = Tool.define(
             }
 
             const source = yield* Bom.readFile(afs, filePath)
+            versions.set(filePath, source.version)
             const oldContent = source.text
             let newContent = oldContent
             let bom = source.bom
@@ -141,6 +149,13 @@ export const ApplyPatchTool = Tool.define(
 
             const movePath = hunk.move_path ? path.resolve(instance.directory, hunk.move_path) : undefined
             yield* assertExternalDirectoryEffect(ctx, movePath)
+            if (movePath) {
+              if (versions.has(movePath)) {
+                return yield* Effect.fail(new Error(`Duplicate patch target: ${movePath}`))
+              }
+              yield* assertVersion(afs, movePath, null)
+              versions.set(movePath, null)
+            }
 
             fileChanges.push({
               filePath,
@@ -169,6 +184,7 @@ export const ApplyPatchTool = Tool.define(
               ),
             )
             const contentToDelete = source.text
+            versions.set(filePath, source.version)
             const deleteDiff = trimDiff(createTwoFilesPatch(filePath, filePath, contentToDelete, ""))
 
             const deletions = contentToDelete.split("\n").length
@@ -202,7 +218,9 @@ export const ApplyPatchTool = Tool.define(
       }))
 
       // Check permissions if needed
-      const relativePaths = fileChanges.map((c) => path.relative(instance.worktree, c.filePath).replaceAll("\\", "/"))
+      const relativePaths = [...versions.keys()].map((file) =>
+        path.relative(instance.worktree, file).replaceAll("\\", "/"),
+      )
       yield* ctx.ask({
         permission: "edit",
         patterns: relativePaths,
@@ -215,9 +233,15 @@ export const ApplyPatchTool = Tool.define(
       })
 
       // Apply the changes
+      // Validate the complete patch before mutating any file. This is not an OS transaction.
+      for (const [file, version] of versions) {
+        yield* assertVersion(afs, file, version)
+      }
       const updates: Array<{ file: string; event: "add" | "change" | "unlink" }> = []
 
       for (const change of fileChanges) {
+        yield* assertVersion(afs, change.filePath, versions.get(change.filePath)!)
+        if (change.movePath) yield* assertVersion(afs, change.movePath, null)
         const edited = change.type === "delete" ? undefined : (change.movePath ?? change.filePath)
         switch (change.type) {
           case "add":

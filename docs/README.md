@@ -25,6 +25,8 @@ libre; el [AGENTS.md del repositorio](../AGENTS.md) añade las reglas para desar
 - [RFC-002](rfc/RFC-002-redaccion-de-secretos.md): redacción de secretos. Implementado, con límites aclarados en el propio RFC.
 - [RFC-003](rfc/RFC-003-evaluacion-del-agente.md): evaluador. Implementación local y pruebas; baseline con Databricks pendiente. [Estado de tareas](specs/003-evaluacion-del-agente/tareas.md).
 - [RFC-004](rfc/RFC-004-indice-del-repositorio.md): índice local de CodeGraph al abrir una conversación. [Plan y evidencia](specs/004-indice-del-repositorio/plan.md).
+- [RFC-005](rfc/RFC-005-robustez-del-agente.md): robustez técnica en desarrollo. [Estado de tareas](specs/005-robustez-del-agente/tareas.md); no implica disponibilidad en la release instalada.
+- [RFC-006](rfc/RFC-006-distribucion-compilada.md): paquete instalable sin checkout y política local incorporada. [Estado y evidencia](specs/006-distribucion-compilada/evidencia.md).
 - [Evolución](EVOLUCION.md): propuestas y próximos pasos; no constituye una lista de funciones disponibles.
 - [Plantilla de plan](plantillas/plan.md), [tareas](plantillas/tareas.md) y [trazabilidad](plantillas/trazabilidad.md).
 

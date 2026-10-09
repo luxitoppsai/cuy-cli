@@ -126,6 +126,11 @@ personal. Esto no: una barrera con interruptor se apaga el día que molesta, que
 exactamente el día que hace falta. Quien quiera sacarlo edita el plugin, y eso deja rastro
 en git.
 
+**Cambio posterior (2026-10-08, RFC-006):** el nuevo paquete fija el presupuesto y
+elimina su interruptor de ejecución. Los tres plugins se incorporan al motor.
+La descripción anterior conserva la decisión histórica; no indica cómo opera el
+paquete nuevo. El control continúa siendo una barrera local.
+
 ## 5. Alcance
 
 **Entra:** `plugin/secretos.js` + `plugin/lib/secretos-core.js`, la lista de rutas, los

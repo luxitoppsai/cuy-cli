@@ -26,8 +26,10 @@ import sys
 
 from configuracion import numero_entorno, cargar_archivo_env, validar_token
 from ejecutables import validar_windows
+from distribucion import datos, recursos, empaquetado, politica_entorno
+from politica import LIMITE_USD
 
-RAIZ = pathlib.Path(__file__).resolve().parent
+RAIZ = datos()
 ES_WINDOWS = os.name == "nt"
 
 # Cada variable cierra una salida de red distinta. La más importante es la de compartir:
@@ -47,10 +49,10 @@ BLINDAJE = {
 def cargar_env() -> None:
     """Carga `.env` sin pisar lo que ya venga del entorno.
 
-    Lo que el usuario exporta a mano manda sobre el archivo: es lo que espera quien
-    hace ``CUY_LIMITE_USD=5 python cuy.py``.
+    Las credenciales del entorno prevalecen; el presupuesto procede del paquete.
     """
     cargar_archivo_env(RAIZ / ".env")
+    politica_entorno()
     if os.environ.get("DATABRICKS_TOKEN"):
         os.environ["DATABRICKS_TOKEN"] = validar_token(os.environ["DATABRICKS_TOKEN"])
 
@@ -64,6 +66,9 @@ def buscar_binario() -> pathlib.Path | None:
 
     :returns: Ruta del ejecutable, o ``None`` si no hay ninguno.
     """
+    if empaquetado():
+        motor = recursos() / "motor" / ("cuy.exe" if ES_WINDOWS else "cuy")
+        return validar_windows(motor) if ES_WINDOWS else motor if motor.is_file() else None
     seleccion = RAIZ / "bin" / "seleccion.json"
     if seleccion.exists():
         elegido = pathlib.Path(json.loads(seleccion.read_text(encoding="utf-8"))["path"])
@@ -90,7 +95,7 @@ def entorno_agente() -> dict:
     """Aplica la configuración de Cuy sin cambiar el directorio de trabajo."""
     from generar_config import construir_permisos, permisos_lectura
 
-    numero_entorno("CUY_LIMITE_USD", 10)
+    politica_entorno()
     numero_entorno("CUY_USD_POR_DBU", 0.07)
     config_path = RAIZ / "opencode.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -113,17 +118,17 @@ def entorno_agente() -> dict:
     config["username"] = "cuycli"
     config["share"] = "disabled"
     config["enabled_providers"] = list(config["provider"])
-    config["plugin"] = [(RAIZ / "plugin" / f"{nombre}.js").as_uri()
+    config["plugin"] = [] if empaquetado() else [(RAIZ / "plugin" / f"{nombre}.js").as_uri()
                         for nombre in ("presupuesto", "auditoria", "secretos")]
     # Ruta de la instalación: las buenas prácticas viajan con Cuy, no con el cwd.
-    instrucciones = str((RAIZ / "instrucciones" / "AGENTS.md").resolve())
+    instrucciones = str(((recursos() if empaquetado() else RAIZ) / "instrucciones" / "AGENTS.md").resolve())
     config["instructions"] = list(dict.fromkeys([instrucciones, *config.get("instructions", [])]))
     entorno = {**os.environ, **BLINDAJE}
     entorno["PWD"] = str(pathlib.Path.cwd())
     entorno.pop("OPENCODE_CONFIG_DIR", None)
     entorno["OPENCODE_CONFIG"] = str(config_path)
     entorno["OPENCODE_CONFIG_CONTENT"] = json.dumps(config)
-    entorno.setdefault("CUY_LIMITE_USD", "10")
+    entorno["CUY_LIMITE_USD"] = str(LIMITE_USD)
     return entorno
 
 

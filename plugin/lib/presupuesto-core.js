@@ -17,14 +17,9 @@ import os from "node:os";
 import path from "node:path";
 import { conBloqueo, escribirAtomico } from "./archivos.js";
 
-function numero(nombre, defecto) {
-  const raw = process.env[nombre] ?? String(defecto);
-  const valor = raw.trim() ? Number(raw) : NaN;
-  if (!Number.isFinite(valor) || valor < 0) throw new Error(`${nombre} debe ser finito y no negativo`);
-  return valor;
-}
-export const LIMITE_USD = numero("CUY_LIMITE_USD", 10);
-export const AVISO = numero("CUY_AVISO_PORCENTAJE", 80);
+// Bun sustituye esta constante al compilar; no es una variable de entorno de ejecución.
+export const LIMITE_USD = typeof CUY_PRESUPUESTO_USD === "undefined" ? 10 : CUY_PRESUPUESTO_USD;
+export const AVISO = 80;
 
 const CARPETA = path.join(os.homedir(), ".local", "share", "cuy-cli");
 export const GASTO_ARCHIVO = process.env.CUY_GASTO ?? path.join(CARPETA, "gasto.json");

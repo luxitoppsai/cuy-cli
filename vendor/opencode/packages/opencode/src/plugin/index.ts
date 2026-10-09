@@ -33,6 +33,7 @@ import type { WorkspaceAdapter } from "@/control-plane/types"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { InstallationChannel } from "@opencode-ai/core/installation/version"
+import { bundled, plugins } from "./cuy"
 
 type State = {
   hooks: Hooks[]
@@ -167,6 +168,12 @@ const layer = Layer.effect(
           $: typeof Bun === "undefined" ? undefined : Bun.$,
         }
 
+        // Mandatory Cuy plugins are independent of optional plugin flags and config.
+        for (const plugin of bundled ? plugins : []) {
+          const init = yield* Effect.promise(() => plugin(input))
+          hooks.push(init)
+        }
+
         for (const plugin of flags.disableDefaultPlugins ? [] : internalPlugins(flags)) {
           const init = yield* Effect.tryPromise({
             try: () => plugin(input),
@@ -178,14 +185,14 @@ const layer = Layer.effect(
           if (init._tag === "Some") hooks.push(init.value)
         }
 
-        const plugins = flags.pure ? [] : (cfg.plugin_origins ?? [])
+        const external = flags.pure || bundled ? [] : (cfg.plugin_origins ?? [])
         if (flags.pure && cfg.plugin_origins?.length) {
         }
-        if (plugins.length) yield* config.waitForDependencies()
+        if (external.length) yield* config.waitForDependencies()
 
         const loaded = yield* Effect.promise(() =>
           PluginLoader.loadExternal({
-            items: plugins,
+            items: external,
             kind: "server",
             report: {
               start(candidate) {},

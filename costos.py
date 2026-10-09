@@ -6,8 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from configuracion import escribir_json, leer_gasto, numero_entorno
 from tarifas import tarifa_usd, personalizadas, FUENTE, FECHA
+from distribucion import datos
 
-RAIZ = Path(__file__).resolve().parent
+RAIZ = datos()
 
 
 def auditar(config: dict) -> list[dict]:

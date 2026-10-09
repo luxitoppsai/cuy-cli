@@ -52,7 +52,7 @@ export const Presupuesto = async ({ client }) => {
           || costo.input <= 0 || costo.output <= 0)) {
         throw new Error(evaluacion
           ? "Modelo sin tarifa configurada. Configurá cost.input/output antes de evaluar; no se permite evaluar sin contabilidad."
-          : "Modelo sin tarifa configurada. Configurá cost.input/output o desactivá explícitamente el presupuesto local con CUY_LIMITE_USD=0.");
+          : "Modelo sin tarifa configurada. Pedí al mantenedor que actualice las tarifas antes de continuar.");
       }
     },
     "tool.execute.before": comprobar,

@@ -59,6 +59,24 @@ const run = Effect.fn("WriteToolTest.run")(function* (
 })
 
 describe("tool.write", () => {
+  for (const initial of [undefined, "original\r\n"]) {
+    it.instance(`preserves concurrent ${initial === undefined ? "creation" : "modification"} during approval`, () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const filepath = path.join(test.directory, "concurrent.txt")
+        if (initial !== undefined) yield* Effect.promise(() => fs.writeFile(filepath, initial))
+        const result = yield* Effect.exit(
+          run({ filePath: filepath, content: "agent" }, {
+            ...ctx,
+            ask: () => Effect.promise(() => fs.writeFile(filepath, "user change\r\n")),
+          }),
+        )
+        expect(result._tag).toBe("Failure")
+        expect(yield* Effect.promise(() => fs.readFile(filepath, "utf8"))).toBe("user change\r\n")
+      }),
+    )
+  }
+
   describe("new file creation", () => {
     it.instance("writes content to new file", () =>
       Effect.gen(function* () {

@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 import cuy
+from distribucion import empaquetado
 from configuracion import numero_entorno, validar_host, leer_gasto
 
 
@@ -48,11 +49,11 @@ def diagnosticar() -> dict:
             sin_tarifa = [m for m, data in proveedor["models"].items()
                           if not all(isinstance(data.get("cost", {}).get(k), (int, float))
                                      and data["cost"][k] > 0 for k in ("input", "output"))]
-            anotar(f"tarifas {pid}", not sin_tarifa or numero_entorno("CUY_LIMITE_USD", 10) == 0,
+            anotar(f"tarifas {pid}", not sin_tarifa,
                    "Faltan: " + ", ".join(sin_tarifa) if sin_tarifa else "Declaradas; estimaciones según contrato")
         for nombre in ("presupuesto", "auditoria", "secretos"):
             archivo = cuy.RAIZ / "plugin" / f"{nombre}.js"
-            anotar(f"plugin {nombre}", archivo.is_file(), str(archivo))
+            anotar(f"plugin {nombre}", empaquetado() or archivo.is_file(), "Incorporado al motor" if empaquetado() else str(archivo))
         anotar("permisos", True, "plan/explore: solo lectura; proyecto no sobreescribe la política de Cuy")
     except (OSError, ValueError, KeyError, TypeError) as exc:
         anotar("configuración", False, str(exc))

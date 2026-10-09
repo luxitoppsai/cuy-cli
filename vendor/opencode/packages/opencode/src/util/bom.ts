@@ -1,5 +1,6 @@
 import { Effect } from "effect"
 import { FSUtil } from "@opencode-ai/core/fs-util"
+import { createHash } from "node:crypto"
 
 const BOM_CODE = 0xfeff
 const BOM = String.fromCharCode(BOM_CODE)
@@ -16,7 +17,11 @@ export function join(text: string, bom: boolean) {
 }
 
 export const readFile = Effect.fn("Bom.readFile")(function* (fs: FSUtil.Interface, filePath: string) {
-  return split(new TextDecoder("utf-8", { ignoreBOM: true }).decode(yield* fs.readFile(filePath)))
+  const bytes = yield* fs.readFile(filePath)
+  return {
+    ...split(new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes)),
+    version: createHash("sha256").update(bytes).digest("hex"),
+  }
 })
 
 export const syncFile = Effect.fn("Bom.syncFile")(function* (fs: FSUtil.Interface, filePath: string, bom: boolean) {
