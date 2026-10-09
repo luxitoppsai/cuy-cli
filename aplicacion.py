@@ -51,6 +51,10 @@ def configurar(argumentos: list[str]) -> int:
 
 def main() -> int:
     """Despacha operaciones del ejecutable sin depender de intérpretes externos."""
+    # Frozen Python ignores PYTHONUTF8; pipes on Windows otherwise use the ANSI code page.
+    for flujo in (sys.stdin, sys.stdout, sys.stderr):
+        if flujo is not None:
+            flujo.reconfigure(encoding="utf-8")
     politica_entorno()
     argumentos = sys.argv[1:]
     try:

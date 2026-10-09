@@ -2,6 +2,7 @@
 
 import json
 import os
+import io
 from pathlib import Path
 import subprocess
 import tempfile
@@ -78,6 +79,14 @@ class Distribucion(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Paquete incompleto"):
                 aplicacion.instalar_aplicacion(Path(temp), destino)
             self.assertFalse(destino.exists())
+
+    def test_salida_compilada_usa_utf8_incluso_con_pagina_ansi(self):
+        buffer = io.BytesIO()
+        salida = io.TextIOWrapper(buffer, encoding="cp1252")
+        with patch.object(aplicacion.sys, "stdout", salida), patch.object(aplicacion.sys, "argv", ["cuy", "upgrade"]), patch.object(aplicacion, "politica_entorno"):
+            self.assertEqual(aplicacion.main(), 0)
+        salida.flush()
+        self.assertIn("Descargá", buffer.getvalue().decode("utf-8"))
 
     def test_configuracion_usa_utilidades_incorporadas_sin_descargar_motor(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(aplicacion, "datos", return_value=Path(temp)), patch("instalar.resolver_host", return_value="https://example.invalid"), patch("instalar.resolver_credencial", return_value="credencial de prueba"), patch("instalar.generar", return_value={"model": "cuy/prueba"}), patch("cuy.buscar_binario", return_value=Path("motor")), patch("instalar.verificar", return_value=True) as verificar, patch("instalar.descargar_binario") as descarga:
