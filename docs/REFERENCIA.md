@@ -217,8 +217,8 @@ Para modificar un archivo existente se utiliza una actualización o reemplazo ex
 Esto todavía no compara con una lectura anterior de la conversación ni protege el
 undo existente. Tampoco cubre escrituras hechas por shell, MCP o formateadores.
 La comprobación deja una ventana antes de escribir y no convierte un parche en una
-transacción atómica. Estas mejoras requieren un motor compilado con el cambio;
-no se incorporan a la release 0.4.3 mediante una actualización de Python.
+transacción atómica. Estas mejoras están incorporadas en los paquetes completos
+0.4.4; no se incorporan a la release 0.4.3 mediante una actualización de Python.
 
 El plugin rechaza rutas sensibles conocidas y redacta patrones en salidas de herramientas,
 títulos y metadatos. Incluye PATs, claves privadas, asignaciones entre comillas en código

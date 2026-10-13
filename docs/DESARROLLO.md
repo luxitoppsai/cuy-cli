@@ -113,8 +113,10 @@ El empaquetado sigue las rutas de recursos y ejecutable de
 [PyInstaller](https://pyinstaller.org/en/stable/runtime-information.html).
 Inno Setup permite instalación por usuario con
 [PrivilegesRequired=lowest](https://jrsoftware.org/ishelp/topic_setup_privilegesrequired.htm).
-Las firmas corporativas y las pruebas en los sistemas de destino son parte de la
-aprobación de distribución. No se acreditan por compilar desde otro sistema.
+Las pruebas en los sistemas de destino forman parte de la validación de distribución;
+no se acreditan por compilar desde otro sistema. Los paquetes actuales no tienen
+firma corporativa ni notarización. El equipo puede añadirlas antes de su distribución
+interna si las exige su política.
 
 ### Release del motor para instalaciones desde fuentes
 

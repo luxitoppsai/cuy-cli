@@ -1,6 +1,6 @@
 # Evidencia — RFC-006
 
-2026-10-08. Implementación y paquete de validación; no se publicó una release.
+2026-10-08 a 2026-10-12. Implementación y validación de la distribución 0.4.4.
 
 ## Observado
 
@@ -29,13 +29,31 @@
   privada; incluye recursos de uso, runtime y licencias. Manifiesto SHA-256 generado.
 - Trazabilidad: 5 comprobaciones correctas; revisión del diff sin errores de espacios.
 
-## Plataformas y publicación pendientes
+## Validación nativa de 0.4.4
 
-Windows y Linux no se ejecutaron en esta Mac. El workflow manual prepara paquetes
-en sus runners nativos; Windows x64 añade un instalador Inno Setup y comprueba una
-instalación silenciosa. Ese camino todavía necesita ejecutarse. No hay `.exe` de
-instalación validado ni release nueva publicada. La versión distribuida anterior
-del motor y la selección local del usuario siguen sin reemplazarse.
+El [workflow de paquetes](https://github.com/luxitoppsai/cuy-cli/actions/runs/37886765941)
+pasó en Windows x64, macOS ARM64 y Linux x64, con el commit
+`ff23a8a3b6eef7d81d7f7bfe44fa8b2acd9d16d8`. Ejecutó los contratos del motor y
+del paquete en cada runner. Windows produjo el instalador Inno Setup, lo instaló
+en una carpeta temporal y ejecutó la aplicación instalada. Las pruebas generales
+del mismo commit también pasaron en los tres sistemas.
+
+La primera ejecución detectó salida ANSI del Python congelado en Windows:
+`PYTHONUTF8` no configura ese runtime. Se fijó UTF-8 en la entrada compilada y se
+añadió una regresión. La segunda detectó una constante de carpeta inválida en los
+accesos de Inno Setup; se sustituyó por el directorio de instalación.
+
+Los cuatro manifiestos descargados coinciden con sus archivos por SHA-256. Los ZIP
+no contienen fuentes sueltas ni configuración privada. El ZIP final de macOS ARM64
+se ejecutó también en la Mac del mantenedor: sus 12 pruebas de distribución pasaron,
+incluido MCP con CodeGraph real y PATH sin intérpretes. CodeGraph real no se ejecutó
+en los runners Windows/Linux; sus contratos optativos se omiten allí.
+
+El manifiesto del motor antiguo y la selección local del usuario se conservan.
+
+La [Release 0.4.4](https://github.com/luxitoppsai/cuy-cli/releases/tag/v0.4.4)
+se publicó el 2026-10-12 con los tres ZIP, el instalador Windows y sus cuatro
+manifiestos SHA-256. No está marcada como prerelease.
 
 El repositorio remoto actual se verificó público. El usuario aceptó mantener las
 fuentes públicas y distribuir mediante Releases allí para llegar primero a una

@@ -4,7 +4,7 @@
 
 Cuy usa OpenCode como motor e incorpora configuración para Databricks, permisos de herramientas, seguimiento del gasto y auditoría local.
 
-> **Estado:** prototipo. Los flujos tienen pruebas automatizadas y de integración con un proveedor simulado; sigue pendiente validar su calidad con modelos reales del workspace. Revisa sus respuestas y cambios antes de incorporarlos a tu proyecto.
+> **Estado:** distribución compilada 0.4.4 validada en Windows, macOS y Linux. Los flujos tienen pruebas automatizadas y de integración con un proveedor simulado; sigue pendiente validar su calidad con modelos reales del workspace. Revisa sus respuestas y cambios antes de incorporarlos a tu proyecto.
 
 ## Para qué sirve
 
@@ -19,17 +19,17 @@ Puedes usarlo de dos formas: una **conversación interactiva** para trabajar pas
 Necesitas:
 
 - **Git**, para las operaciones sobre repositorios.
-- Un equipo con **Windows, macOS o Linux** (x64 o ARM64).
+- Un equipo con **Windows x64, macOS ARM64 o Linux x64**, según los paquetes disponibles.
 - La URL de tu workspace de **Databricks** y un token válido con acceso a los endpoints que vas a usar.
 - Conexión a tu workspace y al servidor de distribución del ejecutable.
 
 El paquete incluye el lanzador, su runtime y el motor. **No necesitas clonar el repositorio ni instalar Python, Node, npm o Bun.** Las consultas a modelos consumen recursos de Databricks; la configuración también realiza consultas para descubrir y comprobar modelos.
 
-La distribución compilada está preparada para validación local; solicita a tu equipo el paquete aprobado para tu sistema. No confundas la release anterior del motor con el paquete completo.
+Descarga la aplicación completa desde [Releases](https://github.com/luxitoppsai/cuy-cli/releases/latest), o desde el servidor que indique tu equipo. Los paquetes actuales no tienen firma corporativa ni notarización.
 
 ## Instalación
 
-Descarga el paquete para tu sistema desde el servidor que indique tu equipo y
+Descarga el paquete para tu sistema desde Releases o el servidor de tu equipo y
 comprueba su SHA-256 contra el manifiesto proporcionado. En Windows x64, abre el
 instalador `.exe` y sigue sus pasos; el acceso «Configurar Cuy» prepara Databricks.
 Para macOS/Linux, o si tu equipo entrega el ZIP portable, extrae la carpeta completa
